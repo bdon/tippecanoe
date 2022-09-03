@@ -55,3 +55,25 @@ TEST_CASE("Z,X,Y to TileID", "") {
 	REQUIRE(zxy_to_tileid(1,1,0) == 4);
 	REQUIRE(zxy_to_tileid(2,0,0) == 5);
 }
+
+TEST_CASE("serialize pmtiles directory", "") {
+	std::vector<pmtilesv3_entry> entries;
+	entries.push_back(pmtilesv3_entry(0,0,0,0));
+	entries.push_back(pmtilesv3_entry(1,1,1,1));
+	entries.push_back(pmtilesv3_entry(2,2,2,2));
+	auto serialized = serialize_entries(entries);
+	auto result = deserialize_entries(serialized);
+	REQUIRE(result.size() == 3);
+	REQUIRE(result[0].tile_id == 0);
+	REQUIRE(result[0].offset == 0);
+	REQUIRE(result[0].length == 0);
+	REQUIRE(result[0].run_length == 0);
+	REQUIRE(result[1].tile_id == 1);
+	REQUIRE(result[1].offset == 1);
+	REQUIRE(result[1].length == 1);
+	REQUIRE(result[1].run_length == 1);
+	REQUIRE(result[2].tile_id == 2);
+	REQUIRE(result[2].offset == 2);
+	REQUIRE(result[2].length == 2);
+	REQUIRE(result[2].run_length == 2);
+}

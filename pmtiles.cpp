@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <zlib.h>
 #include "pmtiles.hpp"
+#include <protozero/varint.hpp>
+#include <iostream>
+#include "mvt.hpp"
 
 pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
 	pmtilesv3 *outfile = new pmtilesv3;
@@ -33,6 +37,7 @@ void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char 
 void pmtilesv3_finalize(pmtilesv3 *outfile) {
 	fprintf(stderr, "offset: %llu\n", outfile->offset);
 	fprintf(stderr, "entries: %lu\n", outfile->entries.size());
+
 	outfile->ostream.close();
 	delete outfile;
 };
@@ -93,4 +98,84 @@ uint64_t zxy_to_tileid(uint8_t z, uint32_t x, uint32_t y) {
     rotate(s, tx, ty, rx, ry);
   }
   return acc + d;
+}
+
+// precondition: entries is sorted by tile_id
+std::string serialize_entries(const std::vector<pmtilesv3_entry>& entries) {
+	std::string data;
+
+	protozero::write_varint(std::back_inserter(data), entries.size());
+
+	uint64_t last_id = 0;
+	for (auto const &entry : entries) {
+		protozero::write_varint(std::back_inserter(data), entry.tile_id - last_id);
+		last_id = entry.tile_id;
+	}
+
+	for (auto const &entry : entries) {
+		protozero::write_varint(std::back_inserter(data), entry.run_length);
+	}
+
+	for (auto const &entry : entries) {
+		protozero::write_varint(std::back_inserter(data), entry.length);
+	}
+
+	for (size_t i = 0; i < entries.size(); i++) {
+		if (i > 0 && entries[i].offset == entries[i-1].offset + entries[i-1].length) {
+			protozero::write_varint(std::back_inserter(data), 0);
+		} else {
+			protozero::write_varint(std::back_inserter(data), entries[i].offset+1);
+		}
+	}
+
+	std::string compressed;
+	compress(data,compressed);
+
+	return compressed;
+}
+
+std::vector<pmtilesv3_entry> deserialize_entries(const std::string &data) {
+	std::string decompressed;
+	decompress(data,decompressed);
+
+	const char *t = decompressed.data();
+	const char *end = t + decompressed.size();
+
+	uint64_t num_entries = protozero::decode_varint(&t,end);
+
+	std::vector<pmtilesv3_entry> result;
+	result.resize(num_entries);
+
+	uint64_t last_id = 0;
+	for (size_t i = 0; i < num_entries; i++) {
+		uint64_t tile_id = last_id + protozero::decode_varint(&t,end);
+		result[i].tile_id = tile_id;
+		last_id = tile_id;
+	}
+
+	for (size_t i = 0; i < num_entries; i++) {
+		result[i].run_length = protozero::decode_varint(&t,end);
+	}
+
+	for (size_t i = 0; i < num_entries; i++) {
+		result[i].length = protozero::decode_varint(&t,end);
+	}
+
+	for (size_t i = 0; i < num_entries; i++) {
+		uint64_t tmp = protozero::decode_varint(&t,end);
+
+		if (i > 0 && tmp == 0) {
+			result[i].offset = result[i-1].offset + result[i-1].length;
+		} else {
+			result[i].offset = tmp - 1;
+		}
+	}
+
+	// assert the directory has been fully consumed
+	if (t != end) {
+		fprintf(stderr, "Error: malformed pmtiles directory\n");
+		exit(EXIT_FAILURE);
+  }
+
+	return result;
 }

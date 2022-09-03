@@ -10,6 +10,9 @@ struct pmtilesv3_entry {
 	uint32_t length;
 	uint32_t run_length;
 
+	pmtilesv3_entry() : tile_id(0), offset(0), length(0), run_length(0) {
+	}
+
 	pmtilesv3_entry(uint64_t _tile_id, uint64_t _offset, uint32_t _length, uint32_t _run_length)
 	  : tile_id(_tile_id), offset(_offset), length(_length), run_length(_run_length) {
 	}
@@ -30,6 +33,10 @@ struct pmtiles_zxy {
 	  : z(_z), x(_x), y(_y) {
 	}
 };
+
+std::string serialize_entries(const std::vector<pmtilesv3_entry>& entries);
+
+std::vector<pmtilesv3_entry> deserialize_entries(const std::string &data);
 
 pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force);
 
