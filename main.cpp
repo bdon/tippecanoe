@@ -1137,7 +1137,7 @@ void choose_first_zoom(long long *file_bbox, std::vector<struct reader> &readers
 	}
 }
 
-int read_input(std::vector<source> &sources, char *fname, int maxzoom, int minzoom, int basezoom, double basezoom_marker_width, sqlite3 *outdb, pmtilesv2 *outfile, const char *outdir, std::set<std::string> *exclude, std::set<std::string> *include, int exclude_all, json_object *filter, double droprate, int buffer, const char *tmpdir, double gamma, int read_parallel, int forcetable, const char *attribution, bool uses_gamma, long long *file_bbox, const char *prefilter, const char *postfilter, const char *description, bool guess_maxzoom, std::map<std::string, int> const *attribute_types, const char *pgm, std::map<std::string, attribute_op> const *attribute_accum, std::map<std::string, std::string> const &attribute_descriptions, std::string const &commandline) {
+int read_input(std::vector<source> &sources, char *fname, int maxzoom, int minzoom, int basezoom, double basezoom_marker_width, sqlite3 *outdb, pmtilesv3 *outfile, const char *outdir, std::set<std::string> *exclude, std::set<std::string> *include, int exclude_all, json_object *filter, double droprate, int buffer, const char *tmpdir, double gamma, int read_parallel, int forcetable, const char *attribution, bool uses_gamma, long long *file_bbox, const char *prefilter, const char *postfilter, const char *description, bool guess_maxzoom, std::map<std::string, int> const *attribute_types, const char *pgm, std::map<std::string, attribute_op> const *attribute_accum, std::map<std::string, std::string> const &attribute_descriptions, std::string const &commandline) {
 	int ret = EXIT_SUCCESS;
 
 	std::vector<struct reader> readers;
@@ -2536,7 +2536,7 @@ int main(int argc, char **argv) {
 	char *out_pmtiles = NULL;
 	char *out_dir = NULL;
 	sqlite3 *outdb = NULL;
-	pmtilesv2 *outfile = NULL;
+	pmtilesv3 *outfile = NULL;
 	int maxzoom = 14;
 	int minzoom = 0;
 	int basezoom = -1;
@@ -3255,7 +3255,7 @@ int main(int argc, char **argv) {
 			unlink(out_pmtiles);
 		}
 
-		outfile = pmtilesv2_open(out_pmtiles, argv, forcetable);
+		outfile = pmtilesv3_open(out_pmtiles, argv, forcetable);
 	}
 	if (out_dir != NULL) {
 		check_dir(out_dir, argv, force, forcetable);
@@ -3292,7 +3292,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (outfile != NULL) {
-		pmtilesv2_finalize(outfile);
+		pmtilesv3_finalize(outfile);
 	}
 
 #ifdef MTRACE

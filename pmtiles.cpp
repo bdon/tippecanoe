@@ -3,8 +3,8 @@
 #include <unistd.h>
 #include "pmtiles.hpp"
 
-pmtilesv2 *pmtilesv2_open(const char *filename, char **argv, int force) {
-	pmtilesv2 *outfile = new pmtilesv2;
+pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
+	pmtilesv3 *outfile = new pmtilesv3;
 
 	struct stat st;
 	if (force) {
@@ -24,13 +24,13 @@ pmtilesv2 *pmtilesv2_open(const char *filename, char **argv, int force) {
 	return outfile;
 }
 
-void pmtilesv2_write_tile(pmtilesv2 *outfile, int z, int tx, int ty, const char *data, int size) {
+void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char *data, int size) {
 	outfile->entries.emplace_back(z,tx,ty,outfile->offset,size);
 	outfile->ostream.write(data,size);
 	outfile->offset += size;
 }
 
-void pmtilesv2_finalize(pmtilesv2 *outfile) {
+void pmtilesv3_finalize(pmtilesv3 *outfile) {
 	fprintf(stderr, "offset: %llu\n", outfile->offset);
 	fprintf(stderr, "entries: %lu\n", outfile->entries.size());
 	outfile->ostream.close();
