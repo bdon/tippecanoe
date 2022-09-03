@@ -25,7 +25,7 @@ pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
 }
 
 void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char *data, int size) {
-	outfile->entries.emplace_back(1,outfile->offset,size,1);
+	outfile->entries.emplace_back(pmtilesv3_entry(zxy_to_tileid(z,tx,ty),outfile->offset,size,1));
 	outfile->ostream.write(data,size);
 	outfile->offset += size;
 }

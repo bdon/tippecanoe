@@ -4,9 +4,19 @@
 #include <vector>
 #include <fstream>
 
+struct pmtilesv3_entry {
+	uint64_t tile_id;
+	uint64_t offset;
+	uint32_t length;
+	uint32_t run_length;
+
+	pmtilesv3_entry(uint64_t _tile_id, uint64_t _offset, uint32_t _length, uint32_t _run_length)
+	  : tile_id(_tile_id), offset(_offset), length(_length), run_length(_run_length) {
+	}
+};
+
 struct pmtilesv3 {
-	// TileId, Offset, Length, RunLength
-	std::vector<std::tuple<uint64_t,uint64_t,uint32_t,uint32_t>> entries{};
+	std::vector<pmtilesv3_entry> entries{};
 	uint64_t offset = 0;
 	std::ofstream ostream;
 };
