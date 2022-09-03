@@ -37,23 +37,23 @@ void pmtilesv3_finalize(pmtilesv3 *outfile) {
 	delete outfile;
 };
 
-inline void rotate(int n, int32_t &x, int32_t &y, int rx, int ry) {
+inline void rotate(int64_t n, int64_t &x, int64_t &y, int64_t rx, int64_t ry) {
   if (ry == 0) {
     if (rx == 1) {
         x = n-1 - x;
         y = n-1 - y;
     }
-    int t  = x;
+    int64_t t = x;
     x = y;
     y = t;
   }
 }
 
 pmtiles_zxy t_on_level(uint8_t z, uint64_t pos) {
-    int32_t n = 1 << z;
-    int32_t rx, ry, s, t = pos;
-    int32_t tx = 0;
-    int32_t ty = 0;
+    int64_t n = 1 << z;
+    int64_t rx, ry, s, t = pos;
+    int64_t tx = 0;
+    int64_t ty = 0;
 
     for (s=1; s<n; s*=2) {
       rx = 1 & (t/2);
@@ -77,4 +77,20 @@ pmtiles_zxy tileid_to_zxy(uint64_t tile_id) {
     acc += num_tiles;
     t_z++;
   }
+}
+
+uint64_t zxy_to_tileid(uint8_t z, uint32_t x, uint32_t y) {
+	uint64_t acc = 0;
+  for (uint8_t t_z = 0; t_z < z; t_z++) acc += (0x1 << t_z) * (0x1 << t_z);
+  int64_t n = 1 << z;
+  int64_t rx, ry, s, d=0;
+  int64_t tx = x;
+  int64_t ty = y;
+  for (s=n/2; s>0; s/=2) {
+    rx = (tx & s) > 0;
+    ry = (ty & s) > 0;
+    d += s * s * ((3 * rx) ^ ry);
+    rotate(s, tx, ty, rx, ry);
+  }
+  return acc + d;
 }

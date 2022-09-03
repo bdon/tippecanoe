@@ -27,7 +27,7 @@ void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char 
 
 void pmtilesv3_finalize(pmtilesv3 *outfile);
 
-uint64_t zxy_to_tileid(uint8_t z, uint8_t x, uint8_t y);
+uint64_t zxy_to_tileid(uint8_t z, uint32_t x, uint32_t y);
 
 pmtiles_zxy tileid_to_zxy(uint64_t tile_id);
 

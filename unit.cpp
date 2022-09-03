@@ -20,7 +20,7 @@ TEST_CASE("UTF-8 truncation", "[trunc]") {
 	REQUIRE(truncate16("0123456789あいうえおかきくけこさ", 16) == std::string("0123456789あいうえおか"));
 }
 
-TEST_CASE("Z,X,Y to TileID", "") {
+TEST_CASE("TileID to Z,X,Y", "") {
 	auto result = tileid_to_zxy(0);
 	REQUIRE(result.z == 0);
 	REQUIRE(result.x == 0);
@@ -45,4 +45,13 @@ TEST_CASE("Z,X,Y to TileID", "") {
 	REQUIRE(result.z == 2);
 	REQUIRE(result.x == 0);
 	REQUIRE(result.y == 0);
+}
+
+TEST_CASE("Z,X,Y to TileID", "") {
+	REQUIRE(zxy_to_tileid(0,0,0) == 0);
+	REQUIRE(zxy_to_tileid(1,0,0) == 1);
+	REQUIRE(zxy_to_tileid(1,0,1) == 2);
+	REQUIRE(zxy_to_tileid(1,1,1) == 3);
+	REQUIRE(zxy_to_tileid(1,1,0) == 4);
+	REQUIRE(zxy_to_tileid(2,0,0) == 5);
 }
