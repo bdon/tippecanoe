@@ -5,6 +5,7 @@
 #include "pmtiles.hpp"
 #include <protozero/varint.hpp>
 #include <iostream>
+#include <sstream>
 #include "mvt.hpp"
 
 pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
@@ -28,15 +29,114 @@ pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
 	return outfile;
 }
 
+void serialize_string(const std::string &str, std::stringstream &ss) {
+	size_t MAX_SIZE = 10;
+	uint8_t slen;
+	slen = str.size();
+	if (slen > MAX_SIZE) {
+		fprintf(stderr, "%s: header value exceeds limit\n", str.data());
+		exit(EXIT_FAILURE);
+	}
+	ss.write((char *)&slen,1);
+	ss.write(str.data(),slen);
+
+	char zero = 0;
+	for (size_t i = 0; i < MAX_SIZE-slen; i++) {
+    ss.write(&zero,sizeof(char));
+	}
+}
+
+// TODO: endianness check
+std::string pmtilesv3_header::serialize() {
+	std::stringstream ss;
+	uint16_t MAGIC = 0x4d50;
+	ss.write((char *)&MAGIC,2);
+	uint16_t version = 2;
+	ss.write((char *)&version,2);
+
+	ss.write((char *)&root_dir_bytes,4);
+	ss.write((char *)&json_metadata_bytes,4);
+	ss.write((char *)&leaf_dirs_bytes,8);
+	ss.write((char *)&leaf_dirs_offset,8);
+	ss.write((char *)&tile_data_offset,8);
+	ss.write((char *)&addressed_tiles_count,8);
+	ss.write((char *)&tile_entries_count,8);
+	ss.write((char *)&unique_tile_contents_count,8);
+
+	uint8_t clustered_val = 0x0;
+	if (clustered) {
+		clustered_val = 0x1;
+	}
+	ss.write((char *)&clustered_val,1);
+
+	serialize_string(directory_compression,ss);
+	serialize_string(tile_compression,ss);
+	serialize_string(tile_format,ss);
+
+	ss.write((char *)&min_zoom,1);
+	ss.write((char *)&max_zoom,1);
+	ss.write((char *)&min_lon,4);
+	ss.write((char *)&min_lat,4);
+	ss.write((char *)&max_lon,4);
+	ss.write((char *)&max_lat,4);
+	ss.write((char *)&center_zoom,1);
+	ss.write((char *)&center_lon,4);
+	ss.write((char *)&center_lat,4);
+
+	return ss.str();
+}
+
 void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char *data, int size) {
 	outfile->entries.emplace_back(pmtilesv3_entry(zxy_to_tileid(z,tx,ty),outfile->offset,size,1));
 	outfile->ostream.write(data,size);
 	outfile->offset += size;
 }
 
+void pmtilesv3_write_metadata(pmtilesv3 *outfile, int minzoom, int maxzoom, double minlat, double minlon, double maxlat, double maxlon, double midlat, double midlon, int forcetable, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline) {
+	fprintf(stderr, "not yet implemented\n");
+}
+
 void pmtilesv3_finalize(pmtilesv3 *outfile) {
 	fprintf(stderr, "offset: %llu\n", outfile->offset);
 	fprintf(stderr, "entries: %lu\n", outfile->entries.size());
+
+	std::string directory = serialize_entries(outfile->entries);
+
+	fprintf(stderr, "directory size: %lu\n", directory.size());
+
+	pmtilesv3_header header;
+
+	header.min_zoom = 0;
+	header.max_zoom = 10;
+	header.min_lon = -180.0;
+	header.max_lon = 180.0;
+	header.min_lat = -90.0;
+	header.max_lat = 90.0;
+	header.center_zoom = 0;
+	header.center_lon = 0.0;
+	header.center_lat = 0.0;
+	header.tile_format = "pbf";
+	header.tile_compression = "gzip";
+	header.directory_compression = "gzip";
+	header.clustered = false;
+	header.unique_tile_contents_count = 0;
+	header.tile_entries_count = 0;
+	header.addressed_tiles_count = 0;
+	header.leaf_dirs_offset = 0;
+	header.tile_data_offset = 0;
+	header.leaf_dirs_bytes = 0;
+	header.json_metadata_bytes = 0;
+	header.root_dir_bytes = 0;
+
+	std::string serialized_header = header.serialize();
+
+	// write header
+	// write root directory
+	// write json
+	// write leaf dirs
+	// write tile data
+
+	std::cout << serialized_header.size() << std::endl;
 
 	outfile->ostream.close();
 	delete outfile;
