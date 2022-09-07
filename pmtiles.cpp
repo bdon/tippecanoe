@@ -93,7 +93,15 @@ void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char 
 }
 
 void pmtilesv3_write_metadata(pmtilesv3 *outfile, int minzoom, int maxzoom, double minlat, double minlon, double maxlat, double maxlon, double midlat, double midlon, int forcetable, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline) {
-	fprintf(stderr, "not yet implemented\n");
+	outfile->header.min_zoom = minzoom;
+	outfile->header.max_zoom = maxzoom;
+	outfile->header.min_lon = minlon;
+	outfile->header.max_lon = maxlon;
+	outfile->header.min_lat = minlat;
+	outfile->header.max_lat = maxlat;
+	outfile->header.center_zoom = minzoom; // TODO
+	outfile->header.center_lon = midlon;
+	outfile->header.center_lat = midlat;
 }
 
 void pmtilesv3_finalize(pmtilesv3 *outfile) {
@@ -104,31 +112,25 @@ void pmtilesv3_finalize(pmtilesv3 *outfile) {
 
 	fprintf(stderr, "directory size: %lu\n", directory.size());
 
-	pmtilesv3_header header;
+	outfile->header.tile_format = "pbf";
+	outfile->header.tile_compression = "gzip";
+	outfile->header.directory_compression = "gzip";
+	outfile->header.clustered = false;
+	outfile->header.unique_tile_contents_count = outfile->entries.size();
+	outfile->header.tile_entries_count = outfile->entries.size();
+	outfile->header.addressed_tiles_count = outfile->entries.size();
+	outfile->header.root_dir_bytes = directory.size();
+	outfile->header.json_metadata_bytes = 0; // TODO
+	outfile->header.leaf_dirs_offset = 0; // TODO
+	outfile->header.leaf_dirs_bytes = 0; // TODO
+	outfile->header.tile_data_offset = PMTILESV3_HEADER_SIZE + directory.size();
 
-	header.min_zoom = 0;
-	header.max_zoom = 10;
-	header.min_lon = -180.0;
-	header.max_lon = 180.0;
-	header.min_lat = -90.0;
-	header.max_lat = 90.0;
-	header.center_zoom = 0;
-	header.center_lon = 0.0;
-	header.center_lat = 0.0;
-	header.tile_format = "pbf";
-	header.tile_compression = "gzip";
-	header.directory_compression = "gzip";
-	header.clustered = false;
-	header.unique_tile_contents_count = 0;
-	header.tile_entries_count = 0;
-	header.addressed_tiles_count = 0;
-	header.leaf_dirs_offset = 0;
-	header.tile_data_offset = 0;
-	header.leaf_dirs_bytes = 0;
-	header.json_metadata_bytes = 0;
-	header.root_dir_bytes = 0;
+	std::string serialized_header = outfile->header.serialize();
 
-	std::string serialized_header = header.serialize();
+	if (PMTILESV3_HEADER_SIZE != serialized_header.size()) {
+		fprintf(stderr, "incorrect header size");
+		exit(EXIT_FAILURE);
+	}
 
 	// write header
 	// write root directory

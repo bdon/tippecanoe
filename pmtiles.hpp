@@ -6,6 +6,8 @@
 #include <map>
 #include "mbtiles.hpp"
 
+static size_t PMTILESV3_HEADER_SIZE = 121;
+
 struct pmtilesv3_entry {
 	uint64_t tile_id;
 	uint64_t offset;
@@ -18,12 +20,6 @@ struct pmtilesv3_entry {
 	pmtilesv3_entry(uint64_t _tile_id, uint64_t _offset, uint32_t _length, uint32_t _run_length)
 	  : tile_id(_tile_id), offset(_offset), length(_length), run_length(_run_length) {
 	}
-};
-
-struct pmtilesv3 {
-	std::vector<pmtilesv3_entry> entries{};
-	uint64_t offset = 0;
-	std::ofstream ostream;
 };
 
 struct pmtiles_zxy {
@@ -60,6 +56,13 @@ struct pmtilesv3_header {
 	float center_lat;
 
 	std::string serialize();
+};
+
+struct pmtilesv3 {
+	std::vector<pmtilesv3_entry> entries{};
+	uint64_t offset = 0;
+	std::ofstream ostream;
+	pmtilesv3_header header;
 };
 
 std::string serialize_entries(const std::vector<pmtilesv3_entry>& entries);
