@@ -60,16 +60,18 @@ struct pmtilesv3_header {
 
 struct pmtilesv3 {
 	std::vector<pmtilesv3_entry> entries{};
-	uint64_t offset = 0;
-	std::ofstream ostream;
 	pmtilesv3_header header;
+	uint64_t offset = 0;
+	std::string tmptilesname;
+	std::ofstream ostream;
+	std::ofstream tilestmp;
 };
 
 std::string serialize_entries(const std::vector<pmtilesv3_entry>& entries);
 
 std::vector<pmtilesv3_entry> deserialize_entries(const std::string &data);
 
-pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force);
+pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force, const char *tmpdir);
 
 void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char *data, int size);
 

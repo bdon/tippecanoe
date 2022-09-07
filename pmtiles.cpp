@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <zlib.h>
 #include "pmtiles.hpp"
 #include <protozero/varint.hpp>
@@ -8,7 +9,7 @@
 #include <sstream>
 #include "mvt.hpp"
 
-pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
+pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force, const char* tmpdir) {
 	pmtilesv3 *outfile = new pmtilesv3;
 
 	struct stat st;
@@ -21,11 +22,15 @@ pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force) {
 		}
 	}
 	outfile->ostream.open(filename,std::ios::out | std::ios::binary);
-	outfile->offset = 512000;
-	for (uint64_t i = 0; i < outfile->offset; ++i) {
-		char zero = 0;
-		outfile->ostream.write(&zero,sizeof(char));
-	}
+
+	char tmpname[strlen(tmpdir) + strlen("/pmtiles.XXXXXX") + 1];
+	sprintf(tmpname, "%s%s", tmpdir, "/pmtiles.XXXXXX");
+	int tmpfd = mkstemp(tmpname);
+	close(tmpfd);
+
+	outfile->tmptilesname = tmpname;
+	outfile->tilestmp.open(tmpname,std::ios::out | std::ios::binary);
+	outfile->offset = 0;
 	return outfile;
 }
 
@@ -88,7 +93,7 @@ std::string pmtilesv3_header::serialize() {
 
 void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char *data, int size) {
 	outfile->entries.emplace_back(pmtilesv3_entry(zxy_to_tileid(z,tx,ty),outfile->offset,size,1));
-	outfile->ostream.write(data,size);
+	outfile->tilestmp.write(data,size);
 	outfile->offset += size;
 }
 
@@ -105,12 +110,9 @@ void pmtilesv3_write_metadata(pmtilesv3 *outfile, int minzoom, int maxzoom, doub
 }
 
 void pmtilesv3_finalize(pmtilesv3 *outfile) {
-	fprintf(stderr, "offset: %llu\n", outfile->offset);
-	fprintf(stderr, "entries: %lu\n", outfile->entries.size());
+	outfile->tilestmp.close();
 
 	std::string directory = serialize_entries(outfile->entries);
-
-	fprintf(stderr, "directory size: %lu\n", directory.size());
 
 	outfile->header.tile_format = "pbf";
 	outfile->header.tile_compression = "gzip";
@@ -132,15 +134,19 @@ void pmtilesv3_finalize(pmtilesv3 *outfile) {
 		exit(EXIT_FAILURE);
 	}
 
-	// write header
-	// write root directory
-	// write json
-	// write leaf dirs
-	// write tile data
+	std::ifstream tilestmp(outfile->tmptilesname, std::ios::in | std::ios_base::binary);
 
-	std::cout << serialized_header.size() << std::endl;
+	outfile->ostream.write(serialized_header.data(),serialized_header.size());
+	// TODO: write json
+	outfile->ostream.write(directory.data(),directory.size());
+	// TODO: write leaf dirs
+	outfile->ostream << tilestmp.rdbuf();
+
+	tilestmp.close();
+	unlink(outfile->tmptilesname.c_str());
 
 	outfile->ostream.close();
+
 	delete outfile;
 };
 

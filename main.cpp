@@ -3259,7 +3259,7 @@ int main(int argc, char **argv) {
 			unlink(out_pmtiles);
 		}
 
-		outfile = pmtilesv3_open(out_pmtiles, argv, forcetable);
+		outfile = pmtilesv3_open(out_pmtiles, argv, forcetable, tmpdir);
 	}
 	if (out_dir != NULL) {
 		check_dir(out_dir, argv, force, forcetable);
