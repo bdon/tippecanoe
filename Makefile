@@ -62,7 +62,7 @@ tile-join: tile-join.o projection.o pool.o mbtiles.o mvt.o memfile.o dirtiles.o 
 tippecanoe-json-tool: jsontool.o jsonpull/jsonpull.o csv.o text.o geojson-loop.o
 	$(CXX) $(PG) $(LIBS) $(FINAL_FLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -lm -lz -lsqlite3 -lpthread
 
-unit: unit.o text.o pmtiles.o mvt.o
+unit: unit.o text.o pmtiles.o mvt.o mbtiles.o write_json.o projection.o
 	$(CXX) $(PG) $(LIBS) $(FINAL_FLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -lm -lz -lsqlite3 -lpthread
 
 -include $(wildcard *.d)

@@ -8,6 +8,8 @@
 #include <iostream>
 #include <sstream>
 #include "mvt.hpp"
+#include "write_json.hpp"
+#include "version.hpp"
 
 pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force, const char* tmpdir) {
 	pmtilesv3 *outfile = new pmtilesv3;
@@ -97,16 +99,139 @@ void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char 
 	outfile->offset += size;
 }
 
-void pmtilesv3_write_metadata(pmtilesv3 *outfile, int minzoom, int maxzoom, double minlat, double minlon, double maxlat, double maxlon, double midlat, double midlon, int forcetable, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline) {
+std::string pmtiles_metadata_json(const char *fname, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline) {
+	std::string buf;
+	json_writer state(&buf);
+	state.json_write_hash();
+	state.nospace = true;
+
+	state.json_write_newline();
+
+	state.json_write_string("name");
+	state.json_write_string(fname);
+	state.json_comma_newline();
+
+	state.json_write_string("description");
+	state.json_write_string(description != NULL ? description : fname);
+	state.json_comma_newline();
+
+	state.json_write_string("version");
+	state.json_write_string("2");
+	state.json_comma_newline();
+
+	state.json_write_string("type");
+	state.json_write_string("overlay");
+	state.json_comma_newline();
+
+	if (attribution != NULL) {
+		state.json_write_string("attribution");
+		state.json_write_string(attribution);
+		state.json_comma_newline();
+	}
+
+	std::string version = program + " " + VERSION;
+	state.json_write_string("generator");
+	state.json_write_string(version);
+	state.json_comma_newline();
+
+	state.json_write_string("generator_options");
+	state.json_write_string(commandline);
+	state.json_comma_newline();
+
+	if (vector) {
+		size_t elements = max_tilestats_values;
+
+		{
+			state.json_write_string("vector_layers");
+			state.json_write_array();
+
+			std::vector<std::string> lnames;
+			for (auto ai = layermap.begin(); ai != layermap.end(); ++ai) {
+				lnames.push_back(ai->first);
+			}
+
+			for (size_t i = 0; i < lnames.size(); i++) {
+				auto fk = layermap.find(lnames[i]);
+				state.json_write_hash();
+
+				state.json_write_string("id");
+				state.json_write_string(lnames[i]);
+
+				state.json_write_string("description");
+				state.json_write_string(fk->second.description);
+
+				state.json_write_string("minzoom");
+				state.json_write_signed(fk->second.minzoom);
+
+				state.json_write_string("maxzoom");
+				state.json_write_signed(fk->second.maxzoom);
+
+				state.json_write_string("fields");
+				state.json_write_hash();
+				state.nospace = true;
+
+				bool first = true;
+				for (auto j = fk->second.file_keys.begin(); j != fk->second.file_keys.end(); ++j) {
+					if (first) {
+						first = false;
+					}
+
+					state.json_write_string(j->first);
+
+					auto f = attribute_descriptions.find(j->first);
+					if (f == attribute_descriptions.end()) {
+						int type = 0;
+						for (auto s : j->second.sample_values) {
+							type |= (1 << s.type);
+						}
+
+						if (type == (1 << mvt_double)) {
+							state.json_write_string("Number");
+						} else if (type == (1 << mvt_bool)) {
+							state.json_write_string("Boolean");
+						} else if (type == (1 << mvt_string)) {
+							state.json_write_string("String");
+						} else {
+							state.json_write_string("Mixed");
+						}
+					} else {
+						state.json_write_string(f->second);
+					}
+				}
+
+				state.nospace = true;
+				state.json_end_hash();
+				state.json_end_hash();
+			}
+
+			state.json_end_array();
+
+			if (do_tilestats && elements > 0) {
+				state.nospace = true;
+				state.json_write_string("tilestats");
+				tilestats(layermap, elements, state);
+			}
+		}
+	}
+
+	state.nospace = true;
+	state.json_end_hash();
+
+	return buf;
+}
+
+void pmtilesv3_write_metadata(pmtilesv3 *outfile, const char *fname, int minzoom, int maxzoom, double minlat, double minlon, double maxlat, double maxlon, double midlat, double midlon, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline) {
 	outfile->header.min_zoom = minzoom;
 	outfile->header.max_zoom = maxzoom;
 	outfile->header.min_lon = minlon;
 	outfile->header.max_lon = maxlon;
 	outfile->header.min_lat = minlat;
 	outfile->header.max_lat = maxlat;
-	outfile->header.center_zoom = minzoom; // TODO
+	outfile->header.center_zoom = maxzoom;
 	outfile->header.center_lon = midlon;
 	outfile->header.center_lat = midlat;
+	outfile->header.tile_format = vector ? "pbf" : "png";
+	outfile->json_metadata = pmtiles_metadata_json(fname, attribution, layermap, vector, description, do_tilestats, attribute_descriptions, program, commandline);
 }
 
 void pmtilesv3_finalize(pmtilesv3 *outfile) {
@@ -114,7 +239,11 @@ void pmtilesv3_finalize(pmtilesv3 *outfile) {
 
 	std::string directory = serialize_entries(outfile->entries);
 
-	outfile->header.tile_format = "pbf";
+	if (PMTILESV3_HEADER_SIZE + directory.size() > 16384) {
+		fprintf(stderr, "directory size of %ld bytes exceeds limit\n", directory.size());
+		exit(EXIT_FAILURE);
+	}
+
 	outfile->header.tile_compression = "gzip";
 	outfile->header.directory_compression = "gzip";
 	outfile->header.clustered = false;
@@ -122,23 +251,23 @@ void pmtilesv3_finalize(pmtilesv3 *outfile) {
 	outfile->header.tile_entries_count = outfile->entries.size();
 	outfile->header.addressed_tiles_count = outfile->entries.size();
 	outfile->header.root_dir_bytes = directory.size();
-	outfile->header.json_metadata_bytes = 0; // TODO
+	outfile->header.json_metadata_bytes = outfile->json_metadata.size();
 	outfile->header.leaf_dirs_offset = 0; // TODO
 	outfile->header.leaf_dirs_bytes = 0; // TODO
-	outfile->header.tile_data_offset = PMTILESV3_HEADER_SIZE + directory.size();
+	outfile->header.tile_data_offset = PMTILESV3_HEADER_SIZE + directory.size() + outfile->json_metadata.size();
 
 	std::string serialized_header = outfile->header.serialize();
 
 	if (PMTILESV3_HEADER_SIZE != serialized_header.size()) {
-		fprintf(stderr, "incorrect header size");
+		fprintf(stderr, "incorrect header size\n");
 		exit(EXIT_FAILURE);
 	}
 
 	std::ifstream tilestmp(outfile->tmptilesname, std::ios::in | std::ios_base::binary);
 
 	outfile->ostream.write(serialized_header.data(),serialized_header.size());
-	// TODO: write json
 	outfile->ostream.write(directory.data(),directory.size());
+	outfile->ostream.write(outfile->json_metadata.data(), outfile->json_metadata.size());
 	// TODO: write leaf dirs
 	outfile->ostream << tilestmp.rdbuf();
 

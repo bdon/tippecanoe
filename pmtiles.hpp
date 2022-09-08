@@ -65,6 +65,7 @@ struct pmtilesv3 {
 	std::string tmptilesname;
 	std::ofstream ostream;
 	std::ofstream tilestmp;
+	std::string json_metadata;
 };
 
 std::string serialize_entries(const std::vector<pmtilesv3_entry>& entries);
@@ -75,7 +76,7 @@ pmtilesv3 *pmtilesv3_open(const char *filename, char **argv, int force, const ch
 
 void pmtilesv3_write_tile(pmtilesv3 *outfile, int z, int tx, int ty, const char *data, int size);
 
-void pmtilesv3_write_metadata(pmtilesv3 *outfile, int minzoom, int maxzoom, double minlat, double minlon, double maxlat, double maxlon, double midlat, double midlon, int forcetable, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline);
+void pmtilesv3_write_metadata(pmtilesv3 *outfile, const char *fname, int minzoom, int maxzoom, double minlat, double minlon, double maxlat, double maxlon, double midlat, double midlon, const char *attribution, std::map<std::string, layermap_entry> const &layermap, bool vector, const char *description, bool do_tilestats, std::map<std::string, std::string> const &attribute_descriptions, std::string const &program, std::string const &commandline);
 
 void pmtilesv3_finalize(pmtilesv3 *outfile);
 
