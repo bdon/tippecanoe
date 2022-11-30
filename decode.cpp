@@ -23,6 +23,7 @@
 #include "jsonpull/jsonpull.h"
 #include "mbtiles.hpp"
 #include "dirtiles.hpp"
+#include "pmtiles_file.hpp"
 #include "errors.hpp"
 
 int minzoom = 0;
@@ -245,7 +246,7 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 			if (st.st_size < 50 * 1024 * 1024) {
 				char *map = (char *) mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 				if (map != NULL && map != MAP_FAILED) {
-					if (strcmp(map, "SQLite format 3") != 0) {
+					if (strcmp(map, "SQLite format 3") != 0 && strncmp(map, "PMTiles", 7) != 0) {
 						if (z >= 0) {
 							std::string s = std::string(map, st.st_size);
 							handle(s, z, x, y, to_decode, pipeline, stats, state, coordinate_mode);
@@ -272,11 +273,40 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 
 	struct stat st;
 	std::vector<zxy> tiles;
+
+	char *pmtiles_map;
+	std::vector<pmtiles_zxy_entry> entries;
+
 	if (stat(fname, &st) == 0 && (st.st_mode & S_IFDIR) != 0) {
 		isdir = true;
 
 		db = dirmeta2tmp(fname);
 		tiles = enumerate_dirtiles(fname, minzoom, maxzoom);
+	} else if (pmtiles_has_suffix(fname)) {
+		// TODO: workaround metadata
+		char *err = NULL;
+
+		if (sqlite3_open("", &db) != SQLITE_OK) {
+			fprintf(stderr, "Temporary db: %s\n", sqlite3_errmsg(db));
+			exit(EXIT_SQLITE);
+		}
+		if (sqlite3_exec(db, "CREATE TABLE metadata (name text, value text);", NULL, NULL, &err) != SQLITE_OK) {
+			fprintf(stderr, "Create metadata table: %s\n", err);
+			exit(EXIT_SQLITE);
+		}
+		/////
+
+		int pmtiles_fd = open(fname, O_RDONLY | O_CLOEXEC);
+		pmtiles_map = (char *) mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, pmtiles_fd, 0);
+		if (pmtiles_map == MAP_FAILED) {
+			perror("mmap in decode");
+			exit(EXIT_MEMORY);
+		}
+		if (close(pmtiles_fd) != 0) {
+			perror("close");
+			exit(EXIT_CLOSE);
+		}
+		entries = pmtiles_entries_colmajor(pmtiles_map);
 	} else {
 		if (sqlite3_open(fname, &db) != SQLITE_OK) {
 			fprintf(stderr, "%s: %s\n", fname, sqlite3_errmsg(db));
@@ -381,6 +411,11 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 				fclose(f);
 
 				handle(s, tiles[i].z, tiles[i].x, tiles[i].y, to_decode, pipeline, stats, state, coordinate_mode);
+			}
+		} else if (entries.size() > 0) {
+			for (auto const &entry : entries) {
+				std::string s{pmtiles_map + entry.offset, entry.length};
+				handle(s, entry.z, entry.x, entry.y, to_decode, pipeline, stats, state, coordinate_mode);
 			}
 		} else {
 			const char *sql = "SELECT tile_data, zoom_level, tile_column, tile_row from tiles where zoom_level between ? and ? order by zoom_level, tile_column, tile_row;";
