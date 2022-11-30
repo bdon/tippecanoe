@@ -47,16 +47,16 @@ C = $(wildcard *.c) $(wildcard *.cpp)
 INCLUDES = -I/usr/local/include -I.
 LIBS = -L/usr/local/lib
 
-tippecanoe: geojson.o jsonpull/jsonpull.o tile.o pool.o mbtiles.o geometry.o projection.o memfile.o mvt.o serial.o main.o text.o dirtiles.o plugin.o read_json.o write_json.o geobuf.o flatgeobuf.o evaluator.o geocsv.o csv.o geojson-loop.o json_logger.o visvalingam.o
+tippecanoe: geojson.o jsonpull/jsonpull.o tile.o pool.o mbtiles.o geometry.o projection.o memfile.o mvt.o serial.o main.o text.o dirtiles.o pmtiles_file.o plugin.o read_json.o write_json.o geobuf.o flatgeobuf.o evaluator.o geocsv.o csv.o geojson-loop.o json_logger.o visvalingam.o
 	$(CXX) $(PG) $(LIBS) $(FINAL_FLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -lm -lz -lsqlite3 -lpthread
 
 tippecanoe-enumerate: enumerate.o
 	$(CXX) $(PG) $(LIBS) $(FINAL_FLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -lsqlite3
 
-tippecanoe-decode: decode.o projection.o mvt.o write_json.o text.o jsonpull/jsonpull.o dirtiles.o
+tippecanoe-decode: decode.o projection.o mvt.o write_json.o text.o jsonpull/jsonpull.o dirtiles.o pmtiles_file.o
 	$(CXX) $(PG) $(LIBS) $(FINAL_FLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -lm -lz -lsqlite3
 
-tile-join: tile-join.o projection.o pool.o mbtiles.o mvt.o memfile.o dirtiles.o jsonpull/jsonpull.o text.o evaluator.o csv.o write_json.o
+tile-join: tile-join.o projection.o pool.o mbtiles.o mvt.o memfile.o dirtiles.o jsonpull/jsonpull.o text.o evaluator.o csv.o write_json.o pmtiles_file.o
 	$(CXX) $(PG) $(LIBS) $(FINAL_FLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -lm -lz -lsqlite3 -lpthread
 
 tippecanoe-json-tool: jsontool.o jsonpull/jsonpull.o csv.o text.o geojson-loop.o
@@ -155,6 +155,12 @@ raw-tiles-test:
 	./tippecanoe-decode -x generator tests/raw-tiles/nothing > tests/raw-tiles/nothing.json.check
 	cmp tests/raw-tiles/nothing.json.check tests/raw-tiles/nothing.json
 	rm -r tests/raw-tiles/nothing tests/raw-tiles/nothing.json.check
+
+pmtiles-test:
+	./tippecanoe -q -f -o tests/pmtiles/hackspots.pmtiles -r1 -pC tests/raw-tiles/hackspots.geojson
+	./tippecanoe-decode -x generator tests/pmtiles/hackspots.pmtiles > tests/pmtiles/hackspots.json.check
+	cmp tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.json
+	rm -r tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.pmtiles
 
 decode-test:
 	mkdir -p tests/muni/decode

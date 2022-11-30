@@ -27,6 +27,7 @@
 #include "mbtiles.hpp"
 #include "geometry.hpp"
 #include "dirtiles.hpp"
+#include "pmtiles_file.hpp"
 #include "evaluator.hpp"
 #include "csv.hpp"
 #include "text.hpp"
@@ -1218,6 +1219,10 @@ int main(int argc, char **argv) {
 
 	if (filter != NULL) {
 		json_free(filter);
+	}
+
+	if (pmtiles_has_suffix(out_mbtiles)) {
+		mbtiles_map_image_to_pmtiles(out_mbtiles);
 	}
 
 	return 0;

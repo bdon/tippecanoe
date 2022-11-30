@@ -45,6 +45,7 @@
 
 #include "jsonpull/jsonpull.h"
 #include "mbtiles.hpp"
+#include "pmtiles_file.hpp"
 #include "tile.hpp"
 #include "pool.hpp"
 #include "projection.hpp"
@@ -3509,6 +3510,10 @@ int main(int argc, char **argv) {
 
 	if (outdb != NULL) {
 		mbtiles_close(outdb, argv[0]);
+	}
+
+	if (pmtiles_has_suffix(out_mbtiles)) {
+		mbtiles_map_image_to_pmtiles(out_mbtiles);
 	}
 
 #ifdef MTRACE
