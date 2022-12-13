@@ -24,31 +24,47 @@ bool pmtiles_has_suffix(const char *filename) {
 	return false;
 }
 
+static void out(json_writer &state, std::string k, std::string v) {
+	state.json_comma_newline();
+	state.json_write_string(k);
+	state.json_write_string(v);
+}
+
 std::string metadata_to_pmtiles_json(metadata m) {
 	std::string buf;
 	json_writer state(&buf);
+
 	state.json_write_hash();
 	state.json_write_newline();
 
-	state.json_comma_newline();
-	// state.json_write_string(k);
+	out(state, "name", m.name);
+	out(state, "description", m.description);
+	if (m.attribution.size() > 0) {
+		out(state, "attribution", m.attribution);
+	}
+	if (m.strategies_json.size() > 0) {
+		state.json_comma_newline();
+		state.json_write_string("strategies");
+		state.json_write_json(m.strategies_json);
+	}
+	out(state, "generator", m.generator);
+	out(state, "generator_options", m.generator_options);
+
+	if (m.vector_layers_json.size() > 0) {
+		state.json_comma_newline();
+		state.json_write_string("vector_layers");
+		state.json_write_json(m.vector_layers_json);
+	}
+
+	if (m.tilestats_json.size() > 0) {
+		state.json_comma_newline();
+		state.json_write_string("tilestats");
+		state.json_write_json(m.tilestats_json);
+	}
 
 	state.json_write_newline();
 	state.json_end_hash();
 	state.json_write_newline();
-
-	// TODO: minzoom, maxzoom, centerzoom, minlat, minlon, maxlon, maxlon
-	// header.min_zoom = 0;
-	// header.max_zoom = 14;
-	// header.min_lon_e7 = -180 * 10000000;
-	// header.min_lat_e7 = -85 * 10000000;
-	// header.max_lon_e7 = 180 * 10000000;
-	// header.max_lat_e7 = 85 * 10000000;
-	// header.center_zoom = 0;	 // TODO: improve me
-	// header.center_lon_e7 = 0 * 10000000;
-	// header.center_lat_e7 = 0 * 10000000;
-
-	// JSON: layerstats, vector_layers
 	std::string compressed;
 	compress(buf, compressed);
 	return compressed;
@@ -224,6 +240,16 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m) {
 
 		pmtiles::headerv3 header;
 
+		header.min_zoom = m.minzoom;
+		header.max_zoom = m.maxzoom;
+		header.min_lon_e7 = m.minlon * 10000000;
+		header.min_lat_e7 = m.minlat * 10000000;
+		header.max_lon_e7 = m.maxlon * 10000000;
+		header.max_lat_e7 = m.maxlat * 10000000;
+		header.center_zoom = m.center_z;
+		header.center_lon_e7 = m.center_lon * 10000000;
+		header.center_lat_e7 = m.center_lat * 10000000;
+
 		std::string json_metadata = metadata_to_pmtiles_json(m);
 
 		sqlite3_close(db);
@@ -231,7 +257,14 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m) {
 		header.clustered = 0x1;
 		header.internal_compression = 0x2;  // gzip
 		header.tile_compression = 0x2;	    // gzip
-		header.tile_type = 0x1;		    // mvt
+
+		if (m.format == "pbf") {
+			header.tile_type = 0x1;
+		} else if (m.format == "png") {
+			header.tile_type = 0x2;
+		} else {
+			header.tile_type = 0x0;
+		}
 
 		header.root_dir_offset = 127;
 		header.root_dir_bytes = root_bytes.size();
