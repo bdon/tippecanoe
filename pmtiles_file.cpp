@@ -24,53 +24,29 @@ bool pmtiles_has_suffix(const char *filename) {
 	return false;
 }
 
-std::string mbtiles_metadata_to_pmtiles(sqlite3 *db, pmtiles::headerv3 &header) {
+std::string metadata_to_pmtiles_json(metadata m) {
 	std::string buf;
 	json_writer state(&buf);
 	state.json_write_hash();
 	state.json_write_newline();
 
-	sqlite3_stmt *stmt;
-	if (sqlite3_prepare_v2(db, "SELECT name, value from metadata;", -1, &stmt, NULL) == SQLITE_OK) {
-		while (sqlite3_step(stmt) == SQLITE_ROW) {
-			std::string key, value;
-
-			const char *k = (const char *) sqlite3_column_text(stmt, 0);
-			const char *v = (const char *) sqlite3_column_text(stmt, 1);
-			if (k == NULL || v == NULL) {
-				fprintf(stderr, "Corrupt mbtiles file: null metadata\n");
-				exit(EXIT_SQLITE);
-			}
-
-			state.json_comma_newline();
-			state.json_write_string(k);
-
-			if (strcmp(k, "center") == 0) {
-			} else if (strcmp(k, "bounds") == 0) {
-			} else if (strcmp(k, "minzoom") == 0) {
-			} else if (strcmp(k, "maxzoom") == 0) {
-			} else {
-				// TODO: json key, strategies key
-				state.json_write_string(v);
-			}
-		}
-		sqlite3_finalize(stmt);
-	}
+	state.json_comma_newline();
+	// state.json_write_string(k);
 
 	state.json_write_newline();
 	state.json_end_hash();
 	state.json_write_newline();
 
 	// TODO: minzoom, maxzoom, centerzoom, minlat, minlon, maxlon, maxlon
-	header.min_zoom = 0;
-	header.max_zoom = 14;
-	header.min_lon_e7 = -180 * 10000000;
-	header.min_lat_e7 = -85 * 10000000;
-	header.max_lon_e7 = 180 * 10000000;
-	header.max_lat_e7 = 85 * 10000000;
-	header.center_zoom = 0;	 // TODO: improve me
-	header.center_lon_e7 = 0 * 10000000;
-	header.center_lat_e7 = 0 * 10000000;
+	// header.min_zoom = 0;
+	// header.max_zoom = 14;
+	// header.min_lon_e7 = -180 * 10000000;
+	// header.min_lat_e7 = -85 * 10000000;
+	// header.max_lon_e7 = 180 * 10000000;
+	// header.max_lat_e7 = 85 * 10000000;
+	// header.center_zoom = 0;	 // TODO: improve me
+	// header.center_lon_e7 = 0 * 10000000;
+	// header.center_lat_e7 = 0 * 10000000;
 
 	// JSON: layerstats, vector_layers
 	std::string compressed;
@@ -121,7 +97,7 @@ std::tuple<std::string, std::string, int> make_root_leaves(const std::vector<pmt
 	}
 }
 
-void mbtiles_map_image_to_pmtiles(char *fname) {
+void mbtiles_map_image_to_pmtiles(char *fname, metadata m) {
 	sqlite3 *db;
 
 	if (sqlite3_open(fname, &db) != SQLITE_OK) {
@@ -248,7 +224,7 @@ void mbtiles_map_image_to_pmtiles(char *fname) {
 
 		pmtiles::headerv3 header;
 
-		std::string json_metadata = mbtiles_metadata_to_pmtiles(db, header);
+		std::string json_metadata = metadata_to_pmtiles_json(m);
 
 		sqlite3_close(db);
 

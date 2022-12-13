@@ -1222,7 +1222,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (pmtiles_has_suffix(out_mbtiles)) {
-		mbtiles_map_image_to_pmtiles(out_mbtiles);
+		mbtiles_map_image_to_pmtiles(out_mbtiles, m);
 	}
 
 	return 0;
