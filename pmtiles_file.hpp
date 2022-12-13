@@ -2,10 +2,11 @@
 #define PMTILES_FILE_HPP
 
 #include "pmtiles/pmtiles.hpp"
+#include "mbtiles.hpp"
 
 bool pmtiles_has_suffix(const char *filename);
 
-void mbtiles_map_image_to_pmtiles(char *dbname);
+void mbtiles_map_image_to_pmtiles(char *dbname, metadata m);
 
 struct pmtiles_zxy_entry {
 	long long z;
