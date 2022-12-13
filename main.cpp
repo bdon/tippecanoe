@@ -3472,6 +3472,10 @@ int main(int argc, char **argv) {
 	if (out_mbtiles != NULL) {
 		if (force) {
 			unlink(out_mbtiles);
+		} else {
+			if (pmtiles_has_suffix(out_mbtiles)) {
+				check_pmtiles(out_mbtiles, argv);
+			}
 		}
 
 		outdb = mbtiles_open(out_mbtiles, argv, forcetable);
@@ -3515,7 +3519,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (pmtiles_has_suffix(out_mbtiles)) {
-		mbtiles_map_image_to_pmtiles(out_mbtiles, std::get<1>(input_ret));
+		mbtiles_map_image_to_pmtiles(out_mbtiles, std::get<1>(input_ret), quiet, quiet_progress);
 	}
 
 #ifdef MTRACE

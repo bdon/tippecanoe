@@ -1142,7 +1142,12 @@ int main(int argc, char **argv) {
 	if (out_mbtiles != NULL) {
 		if (force) {
 			unlink(out_mbtiles);
+		} else {
+			if (pmtiles_has_suffix(out_mbtiles)) {
+				check_pmtiles(out_mbtiles, argv);
+			}
 		}
+
 		outdb = mbtiles_open(out_mbtiles, argv, 0);
 	}
 	if (out_dir != NULL) {
@@ -1222,7 +1227,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (pmtiles_has_suffix(out_mbtiles)) {
-		mbtiles_map_image_to_pmtiles(out_mbtiles, m);
+		mbtiles_map_image_to_pmtiles(out_mbtiles, m, quiet, false);
 	}
 
 	return 0;
