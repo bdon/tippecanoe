@@ -4,6 +4,7 @@
 #include <string.h>
 #include <algorithm>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sqlite3.h>
 #include "errors.hpp"
 #include "pmtiles_file.hpp"
@@ -22,6 +23,15 @@ bool pmtiles_has_suffix(const char *filename) {
 		return true;
 	}
 	return false;
+}
+
+void check_pmtiles(const char *filename, char **argv) {
+	struct stat st;
+	if (stat(filename, &st) == 0) {
+		fprintf(stderr, "%s: Tileset \"%s\" already exists. You can use --force if you want to delete the old tileset.\n", argv[0], filename);
+		fprintf(stderr, "%s: %s: file exists\n", argv[0], filename);
+		exit(EXIT_EXISTS);
+	}
 }
 
 static void out(json_writer &state, std::string k, std::string v) {
@@ -113,7 +123,7 @@ std::tuple<std::string, std::string, int> make_root_leaves(const std::vector<pmt
 	}
 }
 
-void mbtiles_map_image_to_pmtiles(char *fname, metadata m) {
+void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool quiet, bool quiet_progress) {
 	sqlite3 *db;
 
 	if (sqlite3_open(fname, &db) != SQLITE_OK) {
@@ -181,8 +191,14 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m) {
 
 		tmp_ostream.open(tmpname.c_str(), std::ios::out | std::ios::binary);
 
+		int idx = 0;
 		for (auto const &tile_id : tile_ids) {
+			idx = idx + 1;
+			double progress = ((double) idx / tile_ids.size()) * 100;
 			pmtiles::zxy zxy = pmtiles::tileid_to_zxy(tile_id);
+			if (!quiet && !quiet_progress) {
+				fprintf(stderr, "  %3.1f%%  %d/%u/%u  \r", progress, zxy.z, zxy.x, zxy.y);
+			}
 			sqlite3_bind_int(map_stmt, 1, zxy.z);
 			sqlite3_bind_int(map_stmt, 2, zxy.x);
 			sqlite3_bind_int(map_stmt, 3, (1LL << zxy.z) - 1 - zxy.y);
