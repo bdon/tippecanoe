@@ -7,7 +7,7 @@
 bool pmtiles_has_suffix(const char *filename);
 void check_pmtiles(const char *filename, char **argv);
 
-void mbtiles_map_image_to_pmtiles(char *dbname, metadata m, bool quiet, bool quiet_progress);
+void mbtiles_map_image_to_pmtiles(char *dbname, metadata m, bool tile_compression, bool quiet, bool quiet_progress);
 
 struct pmtiles_zxy_entry {
 	long long z;

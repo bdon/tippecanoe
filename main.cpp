@@ -3519,7 +3519,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (pmtiles_has_suffix(out_mbtiles)) {
-		mbtiles_map_image_to_pmtiles(out_mbtiles, std::get<1>(input_ret), quiet, quiet_progress);
+		mbtiles_map_image_to_pmtiles(out_mbtiles, std::get<1>(input_ret), prevent[P_TILE_COMPRESSION] == 0, quiet, quiet_progress);
 	}
 
 #ifdef MTRACE
