@@ -123,7 +123,7 @@ std::tuple<std::string, std::string, int> make_root_leaves(const std::vector<pmt
 	}
 }
 
-void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool quiet, bool quiet_progress) {
+void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression, bool quiet, bool quiet_progress) {
 	sqlite3 *db;
 
 	if (sqlite3_open(fname, &db) != SQLITE_OK) {
@@ -272,7 +272,12 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool quiet, bool quie
 
 		header.clustered = 0x1;
 		header.internal_compression = 0x2;  // gzip
-		header.tile_compression = 0x2;	    // gzip
+
+		if (tile_compression) {
+			header.tile_compression = 0x1;	// gzip
+		} else {
+			header.tile_compression = 0x0;	// none
+		}
 
 		if (m.format == "pbf") {
 			header.tile_type = 0x1;

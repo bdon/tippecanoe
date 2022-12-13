@@ -161,6 +161,11 @@ pmtiles-test:
 	./tippecanoe-decode -x generator tests/pmtiles/hackspots.pmtiles > tests/pmtiles/hackspots.json.check
 	cmp tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.json
 	rm -r tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.pmtiles
+	./tippecanoe -q -f -o tests/pmtiles/hackspots.mbtiles -r1 -pC tests/raw-tiles/hackspots.geojson
+	./tile-join -q -f -pC -o tests/pmtiles/joined.pmtiles tests/pmtiles/hackspots.mbtiles
+	./tippecanoe-decode -x generator tests/pmtiles/joined.pmtiles > tests/pmtiles/hackspots.json.check
+	cmp tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.json
+	rm -r tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.mbtiles tests/pmtiles/joined.pmtiles
 
 decode-test:
 	mkdir -p tests/muni/decode
