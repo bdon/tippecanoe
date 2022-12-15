@@ -283,19 +283,6 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 		db = dirmeta2tmp(fname);
 		tiles = enumerate_dirtiles(fname, minzoom, maxzoom);
 	} else if (pmtiles_has_suffix(fname)) {
-		// TODO: workaround metadata
-		char *err = NULL;
-
-		if (sqlite3_open("", &db) != SQLITE_OK) {
-			fprintf(stderr, "Temporary db: %s\n", sqlite3_errmsg(db));
-			exit(EXIT_SQLITE);
-		}
-		if (sqlite3_exec(db, "CREATE TABLE metadata (name text, value text);", NULL, NULL, &err) != SQLITE_OK) {
-			fprintf(stderr, "Create metadata table: %s\n", err);
-			exit(EXIT_SQLITE);
-		}
-		/////
-
 		int pmtiles_fd = open(fname, O_RDONLY | O_CLOEXEC);
 		pmtiles_map = (char *) mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, pmtiles_fd, 0);
 		if (pmtiles_map == MAP_FAILED) {
@@ -306,6 +293,7 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 			perror("close");
 			exit(EXIT_CLOSE);
 		}
+		db = pmtilesmeta2tmp(fname, pmtiles_map);
 		entries = pmtiles_entries_colmajor(pmtiles_map);
 	} else {
 		if (sqlite3_open(fname, &db) != SQLITE_OK) {

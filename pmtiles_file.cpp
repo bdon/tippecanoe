@@ -319,14 +319,23 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression
 	}
 }
 
-void collect_tile_entries(std::vector<pmtiles_zxy_entry> &tile_entries, const char *pmtiles_map, uint64_t dir_offset, uint64_t dir_len, uint64_t leaf_offset, uint64_t tile_data_offset) {
+void collect_tile_entries(std::vector<pmtiles_zxy_entry> &tile_entries, const char *pmtiles_map, uint8_t internal_compression, uint64_t dir_offset, uint64_t dir_len, uint64_t leaf_offset, uint64_t tile_data_offset) {
 	std::string dir_s{pmtiles_map + dir_offset, dir_len};
 	std::string decompressed_dir;
-	decompress(dir_s, decompressed_dir);
+
+	if (internal_compression == 0x1) {
+		decompressed_dir = dir_s;
+	} else if (internal_compression == 0x2) {
+		decompress(dir_s, decompressed_dir);
+	} else {
+		fprintf(stderr, "Unknown or unsupported pmtiles compression: %d\n", internal_compression);
+		exit(EXIT_OPEN);
+	}
+
 	auto dir_entries = pmtiles::deserialize_directory(decompressed_dir);
 	for (auto const &entry : dir_entries) {
 		if (entry.run_length == 0) {
-			collect_tile_entries(tile_entries, pmtiles_map, leaf_offset + entry.offset, leaf_offset + entry.length, leaf_offset, tile_data_offset);
+			collect_tile_entries(tile_entries, pmtiles_map, internal_compression, leaf_offset + entry.offset, leaf_offset + entry.length, leaf_offset, tile_data_offset);
 		} else {
 			for (uint64_t i = entry.tile_id; i < entry.tile_id + entry.run_length; i++) {
 				pmtiles::zxy zxy = pmtiles::tileid_to_zxy(i);
@@ -354,9 +363,99 @@ std::vector<pmtiles_zxy_entry> pmtiles_entries_colmajor(const char *pmtiles_map)
 
 	std::vector<pmtiles_zxy_entry> tile_entries;
 
-	collect_tile_entries(tile_entries, pmtiles_map, header.root_dir_offset, header.root_dir_bytes, header.leaf_dirs_offset, header.tile_data_offset);
+	collect_tile_entries(tile_entries, pmtiles_map, header.internal_compression, header.root_dir_offset, header.root_dir_bytes, header.leaf_dirs_offset, header.tile_data_offset);
 
 	std::sort(tile_entries.begin(), tile_entries.end(), colmajor_cmp);
 
 	return tile_entries;
+}
+
+void write_meta(sqlite3 *db, const std::string &key, const std::string &value) {
+	char *err = NULL;
+	char *sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES (%Q, %Q);", key.c_str(), value.c_str());
+	if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "set %s in metadata: %s\n", key.c_str(), err);
+	}
+	sqlite3_free(sql);
+}
+
+// this should go away if we get rid of temporary metadata DBs.
+// it transforms the PMTiles header + json into string keys/string values
+// consistent with mbtiles and dirtiles, for the test suite
+sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
+	sqlite3 *db;
+	char *err = NULL;
+
+	if (sqlite3_open("", &db) != SQLITE_OK) {
+		fprintf(stderr, "Temporary db: %s\n", sqlite3_errmsg(db));
+		exit(EXIT_SQLITE);
+	}
+	if (sqlite3_exec(db, "CREATE TABLE metadata (name text, value text);", NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "Create metadata table: %s\n", err);
+		exit(EXIT_SQLITE);
+	}
+
+	std::string header_s{pmtiles_map, 127};
+	auto header = pmtiles::deserialize_header(header_s);
+
+	write_meta(db, "minzoom", std::to_string(header.min_zoom));
+	write_meta(db, "maxzoom", std::to_string(header.max_zoom));
+
+	std::string bounds;
+	bounds += std::to_string(header.min_lon_e7 / 10000000) + ",";
+	bounds += std::to_string(header.min_lat_e7 / 10000000) + ",";
+	bounds += std::to_string(header.max_lon_e7 / 10000000) + ",";
+	bounds += std::to_string(header.max_lat_e7 / 10000000);
+
+	std::string center;
+	center += std::to_string(header.center_lon_e7 / 1000000) + ",";
+	center += std::to_string(header.center_lon_e7 / 1000000) + ",";
+	center += std::to_string(header.center_zoom);
+
+	write_meta(db, "bounds", bounds);
+	write_meta(db, "center", center);
+
+	std::string json_s{pmtiles_map + header.json_metadata_offset, header.json_metadata_bytes};
+	std::string decompressed_json;
+
+	if (header.internal_compression == 0x1) {
+		decompressed_json = json_s;
+	} else if (header.internal_compression == 0x2) {
+		decompress(json_s, decompressed_json);
+	} else {
+		fprintf(stderr, "Unknown or unsupported pmtiles compression: %d\n", header.internal_compression);
+		exit(EXIT_OPEN);
+	}
+
+	json_pull *jp = json_begin_string(decompressed_json.c_str());
+	json_object *o = json_read_tree(jp);
+	if (o == NULL) {
+		fprintf(stderr, "%s: metadata parsing error: %s\n", fname, jp->error);
+		exit(EXIT_JSON);
+	}
+
+	if (o->type != JSON_HASH) {
+		fprintf(stderr, "%s: bad metadata format\n", fname);
+		exit(EXIT_JSON);
+	}
+
+	for (size_t i = 0; i < o->value.object.length; i++) {
+		const char *key = o->value.object.keys[i]->value.string.string;
+		if (strcmp(key, "vector_layers") == 0 || strcmp(key, "tilestats") == 0) {
+			// special case vector_layers, tilestats and strategies
+		} else if (o->value.object.keys[i]->type != JSON_STRING || o->value.object.values[i]->type != JSON_STRING) {
+			fprintf(stderr, "%s\n", key);
+			fprintf(stderr, "%s: non-string in metadata\n", fname);
+		} else {
+			char *sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES (%Q, %Q);", key, o->value.object.values[i]->value.string.string);
+			if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+				fprintf(stderr, "set %s in metadata: %s\n", key, err);
+			}
+			sqlite3_free(sql);
+		}
+	}
+
+	json_end(jp);
+
+	return db;
 }

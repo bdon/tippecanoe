@@ -819,7 +819,8 @@ void decode(struct reader *readers, std::map<std::string, layermap_entry> &layer
 
 		sqlite3 *db = r->db;
 		if (r->pmtiles_map) {
-			// TODO
+			db = pmtilesmeta2tmp(r->name.c_str(), r->pmtiles_map);
+			// json, strategies
 		} else if (db == NULL) {
 			db = dirmeta2tmp(r->dirbase.c_str());
 		} else {

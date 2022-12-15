@@ -22,5 +22,6 @@ struct pmtiles_zxy_entry {
 };
 
 std::vector<pmtiles_zxy_entry> pmtiles_entries_colmajor(const char *pmtiles_map);
+sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map);
 
 #endif
