@@ -370,21 +370,13 @@ std::vector<pmtiles_zxy_entry> pmtiles_entries_colmajor(const char *pmtiles_map)
 	return tile_entries;
 }
 
-void write_meta(sqlite3 *db, const std::string &key, const std::string &value) {
-	char *err = NULL;
-	char *sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES (%Q, %Q);", key.c_str(), value.c_str());
-	if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
-		fprintf(stderr, "set %s in metadata: %s\n", key.c_str(), err);
-	}
-	sqlite3_free(sql);
-}
-
 // this should go away if we get rid of temporary metadata DBs.
 // it transforms the PMTiles header + json into string keys/string values
 // consistent with mbtiles and dirtiles, for the test suite
 sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 	sqlite3 *db;
-	char *err = NULL;
+	char *sql;
+	char *err;
 
 	if (sqlite3_open("", &db) != SQLITE_OK) {
 		fprintf(stderr, "Temporary db: %s\n", sqlite3_errmsg(db));
@@ -398,22 +390,35 @@ sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 	std::string header_s{pmtiles_map, 127};
 	auto header = pmtiles::deserialize_header(header_s);
 
-	write_meta(db, "minzoom", std::to_string(header.min_zoom));
-	write_meta(db, "maxzoom", std::to_string(header.max_zoom));
+	sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('minzoom', %d);", header.min_zoom);
+	if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "set minzoom: %s\n", err);
+	}
+	sqlite3_free(sql);
 
-	std::string bounds;
-	bounds += std::to_string(header.min_lon_e7 / 10000000) + ",";
-	bounds += std::to_string(header.min_lat_e7 / 10000000) + ",";
-	bounds += std::to_string(header.max_lon_e7 / 10000000) + ",";
-	bounds += std::to_string(header.max_lat_e7 / 10000000);
+	sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('maxzoom', %d);", header.max_zoom);
+	if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "set maxzoom: %s\n", err);
+	}
+	sqlite3_free(sql);
 
-	std::string center;
-	center += std::to_string(header.center_lon_e7 / 1000000) + ",";
-	center += std::to_string(header.center_lon_e7 / 1000000) + ",";
-	center += std::to_string(header.center_zoom);
+	double center_lon = double(header.center_lon_e7) / 10000000.0;
+	double center_lat = double(header.center_lat_e7) / 10000000.0;
+	sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('center', '%f,%f,%d');", center_lon, center_lat, header.center_zoom);
+	if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "set center: %s\n", err);
+	}
+	sqlite3_free(sql);
 
-	write_meta(db, "bounds", bounds);
-	write_meta(db, "center", center);
+	double minlon = double(header.min_lon_e7) / 10000000.0;
+	double minlat = double(header.min_lat_e7) / 10000000.0;
+	double maxlon = double(header.max_lon_e7) / 10000000.0;
+	double maxlat = double(header.max_lat_e7) / 10000000.0;
+	sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('bounds', '%f,%f,%f,%f');", minlon, minlat, maxlon, maxlat);
+	if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "set bounds: %s\n", err);
+	}
+	sqlite3_free(sql);
 
 	std::string json_s{pmtiles_map + header.json_metadata_offset, header.json_metadata_bytes};
 	std::string decompressed_json;
@@ -447,7 +452,7 @@ sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 			fprintf(stderr, "%s\n", key);
 			fprintf(stderr, "%s: non-string in metadata\n", fname);
 		} else {
-			char *sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES (%Q, %Q);", key, o->value.object.values[i]->value.string.string);
+			sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES (%Q, %Q);", key, o->value.object.values[i]->value.string.string);
 			if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
 				fprintf(stderr, "set %s in metadata: %s\n", key, err);
 			}
