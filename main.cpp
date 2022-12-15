@@ -1291,6 +1291,7 @@ std::pair<int, metadata> read_input(std::vector<source> &sources, char *fname, i
 				".geojson",
 				".geobuf",
 				".mbtiles",
+				".pmtiles",
 				".csv",
 				".gz",
 			};
