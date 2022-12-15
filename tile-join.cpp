@@ -5,6 +5,8 @@
 
 #define _DEFAULT_SOURCE
 #include <dirent.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdio.h>
@@ -374,6 +376,9 @@ struct reader {
 	sqlite3_stmt *stmt = NULL;
 	struct reader *next = NULL;
 
+	char *pmtiles_map = NULL;
+	std::vector<pmtiles_zxy_entry> pmtiles_entries;
+
 	bool operator<(const struct reader &r) const {
 		if (zoom < r.zoom) {
 			return true;
@@ -428,6 +433,31 @@ struct reader *begin_reading(char *fname) {
 
 			r->dirtiles.erase(r->dirtiles.begin());
 		}
+	} else if (pmtiles_has_suffix(fname)) {
+		int pmtiles_fd = open(fname, O_RDONLY | O_CLOEXEC);
+		r->pmtiles_map = (char *) mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, pmtiles_fd, 0);
+
+		if (r->pmtiles_map == MAP_FAILED) {
+			perror("mmap in decode");
+			exit(EXIT_MEMORY);
+		}
+		if (close(pmtiles_fd) != 0) {
+			perror("close");
+			exit(EXIT_CLOSE);
+		}
+
+		r->pmtiles_entries = pmtiles_entries_colmajor(r->pmtiles_map);
+
+		if (r->pmtiles_entries.size() == 0) {
+			r->zoom = 32;
+		} else {
+			r->zoom = r->pmtiles_entries[0].z;
+			r->x = r->pmtiles_entries[0].x;
+			r->y = r->pmtiles_entries[0].y;
+			r->sorty = (1LL << r->zoom) - 1 - r->y;
+		}
+		r->data = std::string{r->pmtiles_map + r->pmtiles_entries[0].offset, r->pmtiles_entries[0].length};
+		r->pmtiles_entries.erase(r->pmtiles_entries.begin());
 	} else {
 		sqlite3 *db;
 
@@ -737,6 +767,18 @@ void decode(struct reader *readers, std::map<std::string, layermap_entry> &layer
 			} else {
 				r->zoom = 32;
 			}
+		} else if (r->pmtiles_map != NULL) {
+			if (r->pmtiles_entries.size() == 0) {
+				r->zoom = 32;
+			} else {
+				r->zoom = r->pmtiles_entries[0].z;
+				r->x = r->pmtiles_entries[0].x;
+				r->y = r->pmtiles_entries[0].y;
+				r->sorty = (1LL << r->zoom) - 1 - r->y;
+				r->data = std::string{r->pmtiles_map + r->pmtiles_entries[0].offset, r->pmtiles_entries[0].length};
+
+				r->pmtiles_entries.erase(r->pmtiles_entries.begin());
+			}
 		} else {
 			if (r->dirtiles.size() == 0) {
 				r->zoom = 32;
@@ -776,7 +818,9 @@ void decode(struct reader *readers, std::map<std::string, layermap_entry> &layer
 		next = r->next;
 
 		sqlite3 *db = r->db;
-		if (db == NULL) {
+		if (r->pmtiles_map) {
+			// TODO
+		} else if (db == NULL) {
 			db = dirmeta2tmp(r->dirbase.c_str());
 		} else {
 			sqlite3_finalize(r->stmt);
