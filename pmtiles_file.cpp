@@ -446,8 +446,16 @@ sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 
 	for (size_t i = 0; i < o->value.object.length; i++) {
 		const char *key = o->value.object.keys[i]->value.string.string;
-		if (strcmp(key, "vector_layers") == 0 || strcmp(key, "tilestats") == 0) {
-			// special case vector_layers, tilestats and strategies
+		if (strcmp(key, "vector_layers") == 0 && o->value.object.values[i]->type == JSON_ARRAY) {
+			// TODO do something here?
+		} else if (strcmp(key, "tilestats") == 0 && o->value.object.values[i]->type == JSON_HASH) {
+			// TODO do something here?
+		} else if (strcmp(key, "strategies") == 0 && o->value.object.values[i]->type == JSON_ARRAY) {
+			// sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('strategies', %Q);", json_stringify(o->value.object.values[i]));
+			// if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+			// 	fprintf(stderr, "set %s in metadata: %s\n", key, err);
+			// }
+			// sqlite3_free(sql);
 		} else if (o->value.object.keys[i]->type != JSON_STRING || o->value.object.values[i]->type != JSON_STRING) {
 			fprintf(stderr, "%s\n", key);
 			fprintf(stderr, "%s: non-string in metadata\n", fname);
