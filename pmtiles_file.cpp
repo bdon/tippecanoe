@@ -329,7 +329,7 @@ void collect_tile_entries(std::vector<pmtiles_zxy_entry> &tile_entries, const ch
 			collect_tile_entries(tile_entries, pmtiles_map, leaf_offset + entry.offset, leaf_offset + entry.length, leaf_offset, tile_data_offset);
 		} else {
 			for (uint64_t i = entry.tile_id; i < entry.tile_id + entry.run_length; i++) {
-				pmtiles::zxy zxy = pmtiles::tileid_to_zxy(entry.tile_id);
+				pmtiles::zxy zxy = pmtiles::tileid_to_zxy(i);
 				tile_entries.emplace_back(zxy.z, zxy.x, zxy.y, tile_data_offset + entry.offset, entry.length);
 			}
 		}
