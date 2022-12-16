@@ -160,12 +160,21 @@ pmtiles-test:
 	./tippecanoe -q -f -o tests/pmtiles/hackspots.pmtiles -r1 -pC tests/raw-tiles/hackspots.geojson
 	./tippecanoe-decode -x generator tests/pmtiles/hackspots.pmtiles > tests/pmtiles/hackspots.json.check
 	cmp tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.json
+	# Test generating pmtiles first and then converting to mbtiles with tile-join.
+	./tile-join -q -f -pC -o tests/pmtiles/joined.mbtiles tests/pmtiles/hackspots.pmtiles
+	./tippecanoe-decode -x generator tests/pmtiles/joined.mbtiles > tests/pmtiles/joined.json.check
+	cmp tests/pmtiles/joined.json.check tests/pmtiles/joined.json
 	rm -r tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.pmtiles
+
+	# Test generating mbtiles first and then converting to pmtiles with tile-join. (Changes bounds)
 	./tippecanoe -q -f -o tests/pmtiles/hackspots.mbtiles -r1 -pC tests/raw-tiles/hackspots.geojson
 	./tile-join -q -f -pC -o tests/pmtiles/joined.pmtiles tests/pmtiles/hackspots.mbtiles
-	./tippecanoe-decode -x generator tests/pmtiles/joined.pmtiles > tests/pmtiles/hackspots.json.check
-	cmp tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.json
-	rm -r tests/pmtiles/hackspots.json.check tests/pmtiles/hackspots.mbtiles tests/pmtiles/joined.pmtiles
+
+	# decode changes order (ZXY vs TMS order)
+	./tippecanoe-decode -x generator tests/pmtiles/joined.pmtiles > tests/pmtiles/joined_reordered.json.check
+	cmp tests/pmtiles/joined_reordered.json.check tests/pmtiles/joined_reordered.json
+	rm -r tests/pmtiles/joined_reordered.json.check tests/pmtiles/hackspots.mbtiles tests/pmtiles/joined.pmtiles
+
 
 decode-test:
 	mkdir -p tests/muni/decode

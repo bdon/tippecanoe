@@ -48,7 +48,10 @@ std::string metadata_to_pmtiles_json(metadata m) {
 	state.json_write_newline();
 
 	out(state, "name", m.name);
+	out(state, "format", m.format);
+	out(state, "type", m.type);
 	out(state, "description", m.description);
+	out(state, "version", std::to_string(m.version));
 	if (m.attribution.size() > 0) {
 		out(state, "attribution", m.attribution);
 	}
@@ -444,18 +447,27 @@ sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 		exit(EXIT_JSON);
 	}
 
+	bool has_json = false;
+	std::string buf;
+	json_writer state(&buf);
+	state.json_write_hash();
+
 	for (size_t i = 0; i < o->value.object.length; i++) {
 		const char *key = o->value.object.keys[i]->value.string.string;
 		if (strcmp(key, "vector_layers") == 0 && o->value.object.values[i]->type == JSON_ARRAY) {
-			// TODO do something here?
+			has_json = true;
+			state.json_write_string("vector_layers");
+			state.json_write_json(json_stringify(o->value.object.values[i]));
 		} else if (strcmp(key, "tilestats") == 0 && o->value.object.values[i]->type == JSON_HASH) {
-			// TODO do something here?
+			has_json = true;
+			state.json_write_string("tilestats");
+			state.json_write_json(json_stringify(o->value.object.values[i]));
 		} else if (strcmp(key, "strategies") == 0 && o->value.object.values[i]->type == JSON_ARRAY) {
-			// sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('strategies', %Q);", json_stringify(o->value.object.values[i]));
-			// if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
-			// 	fprintf(stderr, "set %s in metadata: %s\n", key, err);
-			// }
-			// sqlite3_free(sql);
+			sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('strategies', %Q);", json_stringify(o->value.object.values[i]));
+			if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+				fprintf(stderr, "set %s in metadata: %s\n", key, err);
+			}
+			sqlite3_free(sql);
 		} else if (o->value.object.keys[i]->type != JSON_STRING || o->value.object.values[i]->type != JSON_STRING) {
 			fprintf(stderr, "%s\n", key);
 			fprintf(stderr, "%s: non-string in metadata\n", fname);
@@ -469,6 +481,15 @@ sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 	}
 
 	json_end(jp);
+	state.json_end_hash();
+
+	if (has_json) {
+		sql = sqlite3_mprintf("INSERT INTO metadata (name, value) VALUES ('json', %Q);", buf.c_str());
+		if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
+			fprintf(stderr, "set json in metadata: %s\n", err);
+		}
+		sqlite3_free(sql);
+	}
 
 	return db;
 }
