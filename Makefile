@@ -338,7 +338,16 @@ allow-existing-test:
 	./tippecanoe -q -Z10 -z11 -F -e tests/allow-existing/both.dir tests/coalesce-tract/tl_2010_06001_tract10.json
 	./tippecanoe-decode -x generator -x generator_options tests/allow-existing/both.dir | sed 's/both\.dir/both.mbtiles/g' > tests/allow-existing/both.dir.json.check
 	cmp tests/allow-existing/both.dir.json.check tests/allow-existing/both.mbtiles.json
-	rm -r tests/allow-existing/both.dir.json.check tests/allow-existing/both.dir tests/allow-existing/both.mbtiles.json.check tests/allow-existing/both.mbtiles
+	# Make a tileset
+	./tippecanoe -q -Z0 -z0 -f -e tests/allow-existing/both.pmtiles tests/coalesce-tract/tl_2010_06001_tract10.json
+	# Writing to existing should fail
+	if ./tippecanoe -q -Z1 -z1 -e tests/allow-existing/both.pmtiles tests/coalesce-tract/tl_2010_06001_tract10.json; then exit 1; else exit 0; fi
+	# Replace existing
+	./tippecanoe -q -Z8 -z9 -f -e tests/allow-existing/both.pmtiles tests/coalesce-tract/tl_2010_06001_tract10.json
+	./tippecanoe -q -Z10 -z11 -F -e tests/allow-existing/both.pmtiles tests/coalesce-tract/tl_2010_06001_tract10.json
+	./tippecanoe-decode -x generator -x generator_options tests/allow-existing/both.pmtiles | sed 's/both\.pmtiles/both.mbtiles/g' > tests/allow-existing/both.pmtiles.json.check
+	cmp tests/allow-existing/both.pmtiles.json.check tests/allow-existing/both.mbtiles.json
+	rm -r tests/allow-existing/both.pmtiles.json.check tests/allow-existing/both.pmtiles tests/allow-existing/both.dir.json.check tests/allow-existing/both.dir tests/allow-existing/both.mbtiles.json.check tests/allow-existing/both.mbtiles
 
 csv-test:
 	# Reading from named CSV
