@@ -40,6 +40,36 @@ static void out(json_writer &state, std::string k, std::string v) {
 	state.json_write_string(v);
 }
 
+std::string decompress_fn(const std::string &input, uint8_t compression) {
+	std::string output;
+	if (compression == pmtiles::COMPRESSION_NONE) {
+		output = input;
+	} else if (compression == pmtiles::COMPRESSION_GZIP) {
+		decompress(input, output);
+	} else {
+		throw std::runtime_error("Unknown or unsupported compression.");
+	}
+
+	return output;
+}
+
+std::string compress_fn(const std::string &input, uint8_t compression) {
+	std::string output;
+	if (compression == pmtiles::COMPRESSION_NONE) {
+		output = input;
+	} else if (compression == pmtiles::COMPRESSION_GZIP) {
+		compress(input, output);
+	} else {
+		throw std::runtime_error("Unknown or unsupported compression.");
+	}
+
+	return output;
+}
+
+std::vector<pmtiles::entry_zxy> pmtiles_entries_zxy(const char *pmtiles_map) {
+	return pmtiles::entries_zxy(&decompress_fn, pmtiles_map);
+}
+
 std::string metadata_to_pmtiles_json(metadata m) {
 	std::string buf;
 	json_writer state(&buf);
@@ -81,49 +111,6 @@ std::string metadata_to_pmtiles_json(metadata m) {
 	std::string compressed;
 	compress(buf, compressed);
 	return compressed;
-}
-
-std::tuple<std::string, std::string, int> build_root_leaves(const std::vector<pmtiles::entryv3> &entries, int leaf_size) {
-	std::vector<pmtiles::entryv3> root_entries;
-	std::string leaves_bytes;
-	int num_leaves = 0;
-	for (size_t i = 0; i <= entries.size(); i += leaf_size) {
-		num_leaves++;
-		int end = i + leaf_size;
-		if (i + leaf_size > entries.size()) {
-			end = entries.size();
-		}
-		std::vector<pmtiles::entryv3> subentries = {entries.begin() + i, entries.begin() + end};
-		auto uncompressed_leaf = pmtiles::serialize_directory(subentries);
-		std::string compressed_leaf;
-		compress(uncompressed_leaf, compressed_leaf);
-		root_entries.emplace_back(entries[i].tile_id, leaves_bytes.size(), compressed_leaf.size(), 0);
-		leaves_bytes += compressed_leaf;
-	}
-	auto uncompressed_root = pmtiles::serialize_directory(root_entries);
-	std::string compressed_root;
-	compress(uncompressed_root, compressed_root);
-	return std::make_tuple(compressed_root, leaves_bytes, num_leaves);
-}
-
-std::tuple<std::string, std::string, int> make_root_leaves(const std::vector<pmtiles::entryv3> &entries) {
-	auto test_bytes = pmtiles::serialize_directory(entries);
-	std::string compressed;
-	compress(test_bytes, compressed);
-	if (compressed.size() <= 16384 - 127) {
-		return std::make_tuple(compressed, "", 0);
-	}
-	int leaf_size = 4096;
-	while (true) {
-		std::string root_bytes;
-		std::string leaves_bytes;
-		int num_leaves;
-		std::tie(root_bytes, leaves_bytes, num_leaves) = build_root_leaves(entries, leaf_size);
-		if (root_bytes.length() < 16384 - 127) {
-			return std::make_tuple(root_bytes, leaves_bytes, num_leaves);
-		}
-		leaf_size *= 2;
-	}
 }
 
 void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression, bool quiet, bool quiet_progress) {
@@ -255,7 +242,7 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression
 		std::string root_bytes;
 		std::string leaves_bytes;
 		int num_leaves;
-		std::tie(root_bytes, leaves_bytes, num_leaves) = make_root_leaves(entries);
+		std::tie(root_bytes, leaves_bytes, num_leaves) = make_root_leaves(&compress_fn, pmtiles::COMPRESSION_GZIP, entries);
 
 		pmtiles::headerv3 header;
 
@@ -274,20 +261,20 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression
 		sqlite3_close(db);
 
 		header.clustered = 0x1;
-		header.internal_compression = 0x2;  // gzip
+		header.internal_compression = pmtiles::COMPRESSION_GZIP;
 
 		if (tile_compression) {
-			header.tile_compression = 0x2;	// gzip
+			header.tile_compression = pmtiles::COMPRESSION_GZIP;
 		} else {
-			header.tile_compression = 0x0;	// none
+			header.tile_compression = pmtiles::COMPRESSION_NONE;
 		}
 
 		if (m.format == "pbf") {
-			header.tile_type = 0x1;
+			header.tile_type = pmtiles::TILETYPE_MVT;
 		} else if (m.format == "png") {
-			header.tile_type = 0x2;
+			header.tile_type = pmtiles::TILETYPE_PNG;
 		} else {
-			header.tile_type = 0x0;
+			header.tile_type = pmtiles::TILETYPE_UNKNOWN;
 		}
 
 		header.root_dir_offset = 127;
@@ -320,57 +307,6 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression
 		unlink(tmpname.c_str());
 		ostream.close();
 	}
-}
-
-void collect_tile_entries(std::vector<pmtiles_zxy_entry> &tile_entries, const char *pmtiles_map, uint8_t internal_compression, uint64_t dir_offset, uint64_t dir_len, uint64_t leaf_offset, uint64_t tile_data_offset) {
-	std::string dir_s{pmtiles_map + dir_offset, dir_len};
-	std::string decompressed_dir;
-
-	if (internal_compression == 0x1) {
-		decompressed_dir = dir_s;
-	} else if (internal_compression == 0x2) {
-		decompress(dir_s, decompressed_dir);
-	} else {
-		fprintf(stderr, "Unknown or unsupported pmtiles compression: %d\n", internal_compression);
-		exit(EXIT_OPEN);
-	}
-
-	auto dir_entries = pmtiles::deserialize_directory(decompressed_dir);
-	for (auto const &entry : dir_entries) {
-		if (entry.run_length == 0) {
-			collect_tile_entries(tile_entries, pmtiles_map, internal_compression, leaf_offset + entry.offset, leaf_offset + entry.length, leaf_offset, tile_data_offset);
-		} else {
-			for (uint64_t i = entry.tile_id; i < entry.tile_id + entry.run_length; i++) {
-				pmtiles::zxy zxy = pmtiles::tileid_to_zxy(i);
-				tile_entries.emplace_back(zxy.z, zxy.x, zxy.y, tile_data_offset + entry.offset, entry.length);
-			}
-		}
-	}
-}
-
-struct {
-	bool operator()(pmtiles_zxy_entry a, pmtiles_zxy_entry b) const {
-		if (a.z != b.z) {
-			return a.z < b.z;
-		}
-		if (a.x != b.x) {
-			return a.x < b.x;
-		}
-		return a.y < b.y;
-	}
-} colmajor_cmp;
-
-std::vector<pmtiles_zxy_entry> pmtiles_entries_colmajor(const char *pmtiles_map) {
-	std::string header_s{pmtiles_map, 127};
-	auto header = pmtiles::deserialize_header(header_s);
-
-	std::vector<pmtiles_zxy_entry> tile_entries;
-
-	collect_tile_entries(tile_entries, pmtiles_map, header.internal_compression, header.root_dir_offset, header.root_dir_bytes, header.leaf_dirs_offset, header.tile_data_offset);
-
-	std::sort(tile_entries.begin(), tile_entries.end(), colmajor_cmp);
-
-	return tile_entries;
 }
 
 // this should go away if we get rid of temporary metadata DBs.

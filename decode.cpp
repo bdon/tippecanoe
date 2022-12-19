@@ -15,7 +15,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <protozero/pbf_reader.hpp>
-#include <sys/stat.h>
 #include "mvt.hpp"
 #include "projection.hpp"
 #include "geometry.hpp"
@@ -275,7 +274,7 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 	std::vector<zxy> tiles;
 
 	char *pmtiles_map;
-	std::vector<pmtiles_zxy_entry> entries;
+	std::vector<pmtiles::entry_zxy> entries;
 
 	if (stat(fname, &st) == 0 && (st.st_mode & S_IFDIR) != 0) {
 		isdir = true;
@@ -294,7 +293,7 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 			exit(EXIT_CLOSE);
 		}
 		db = pmtilesmeta2tmp(fname, pmtiles_map);
-		entries = pmtiles_entries_colmajor(pmtiles_map);
+		entries = pmtiles_entries_zxy(pmtiles_map);
 	} else {
 		if (sqlite3_open(fname, &db) != SQLITE_OK) {
 			fprintf(stderr, "%s: %s\n", fname, sqlite3_errmsg(db));
