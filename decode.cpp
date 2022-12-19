@@ -293,7 +293,7 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 			exit(EXIT_CLOSE);
 		}
 		db = pmtilesmeta2tmp(fname, pmtiles_map);
-		entries = pmtiles_entries_zxy(pmtiles_map);
+		entries = pmtiles_entries_tms(pmtiles_map, minzoom, maxzoom);
 	} else {
 		if (sqlite3_open(fname, &db) != SQLITE_OK) {
 			fprintf(stderr, "%s: %s\n", fname, sqlite3_errmsg(db));
@@ -469,35 +469,48 @@ void decode(char *fname, int z, unsigned x, unsigned y, std::set<std::string> co
 	} else {
 		int handled = 0;
 		while (z >= 0 && !handled) {
-			const char *sql = "SELECT tile_data from tiles where zoom_level = ? and tile_column = ? and tile_row = ?;";
-			sqlite3_stmt *stmt;
-			if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-				fprintf(stderr, "%s: select failed: %s\n", fname, sqlite3_errmsg(db));
-				exit(EXIT_SQLITE);
-			}
-
-			sqlite3_bind_int(stmt, 1, z);
-			sqlite3_bind_int(stmt, 2, x);
-			sqlite3_bind_int(stmt, 3, (1LL << z) - 1 - y);
-
-			while (sqlite3_step(stmt) == SQLITE_ROW) {
-				int len = sqlite3_column_bytes(stmt, 0);
-				const char *s = (const char *) sqlite3_column_blob(stmt, 0);
-
-				if (s == NULL) {
-					fprintf(stderr, "Corrupt mbtiles file: null entry in tiles table\n");
+			if (entries.size() > 0) {
+				uint64_t tile_offset;
+				uint32_t tile_length;
+				std::tie(tile_offset, tile_length) = pmtiles_get_tile(pmtiles_map, z, x, y);
+				if (tile_length > 0) {
+					if (z != oz) {
+						fprintf(stderr, "%s: Warning: using tile %d/%u/%u instead of %d/%u/%u\n", fname, z, x, y, oz, ox, oy);
+					}
+					std::string s{pmtiles_map + tile_offset, tile_length};
+					handle(s, z, x, y, to_decode, pipeline, stats, state, coordinate_mode);
+					handled = 1;
+				}
+			} else {
+				const char *sql = "SELECT tile_data from tiles where zoom_level = ? and tile_column = ? and tile_row = ?;";
+				sqlite3_stmt *stmt;
+				if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+					fprintf(stderr, "%s: select failed: %s\n", fname, sqlite3_errmsg(db));
 					exit(EXIT_SQLITE);
 				}
 
-				if (z != oz) {
-					fprintf(stderr, "%s: Warning: using tile %d/%u/%u instead of %d/%u/%u\n", fname, z, x, y, oz, ox, oy);
+				sqlite3_bind_int(stmt, 1, z);
+				sqlite3_bind_int(stmt, 2, x);
+				sqlite3_bind_int(stmt, 3, (1LL << z) - 1 - y);
+
+				while (sqlite3_step(stmt) == SQLITE_ROW) {
+					int len = sqlite3_column_bytes(stmt, 0);
+					const char *s = (const char *) sqlite3_column_blob(stmt, 0);
+
+					if (s == NULL) {
+						fprintf(stderr, "Corrupt mbtiles file: null entry in tiles table\n");
+						exit(EXIT_SQLITE);
+					}
+
+					if (z != oz) {
+						fprintf(stderr, "%s: Warning: using tile %d/%u/%u instead of %d/%u/%u\n", fname, z, x, y, oz, ox, oy);
+					}
+
+					handle(std::string(s, len), z, x, y, to_decode, pipeline, stats, state, coordinate_mode);
+					handled = 1;
 				}
-
-				handle(std::string(s, len), z, x, y, to_decode, pipeline, stats, state, coordinate_mode);
-				handled = 1;
+				sqlite3_finalize(stmt);
 			}
-
-			sqlite3_finalize(stmt);
 
 			z--;
 			x /= 2;
