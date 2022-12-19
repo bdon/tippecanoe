@@ -446,7 +446,7 @@ struct reader *begin_reading(char *fname) {
 			exit(EXIT_CLOSE);
 		}
 
-		r->pmtiles_entries = pmtiles_entries_zxy(r->pmtiles_map);
+		r->pmtiles_entries = pmtiles_entries_tms(r->pmtiles_map, minzoom, maxzoom);
 		std::reverse(r->pmtiles_entries.begin(), r->pmtiles_entries.end());
 
 		if (r->pmtiles_entries.size() == 0) {

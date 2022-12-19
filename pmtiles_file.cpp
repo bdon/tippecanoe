@@ -66,8 +66,15 @@ std::string compress_fn(const std::string &input, uint8_t compression) {
 	return output;
 }
 
-std::vector<pmtiles::entry_zxy> pmtiles_entries_zxy(const char *pmtiles_map) {
-	return pmtiles::entries_zxy(&decompress_fn, pmtiles_map);
+std::vector<pmtiles::entry_zxy> pmtiles_entries_tms(const char *pmtiles_map, int minzoom, int maxzoom) {
+	std::vector<pmtiles::entry_zxy> filtered;
+	auto all_entries = pmtiles::entries_tms(&decompress_fn, pmtiles_map);
+	std::copy_if(all_entries.begin(), all_entries.end(), std::back_inserter(filtered), [minzoom, maxzoom](pmtiles::entry_zxy e) { return e.z >= minzoom && e.z <= maxzoom; });
+	return filtered;
+}
+
+std::pair<uint64_t, uint32_t> pmtiles_get_tile(const char *pmtiles_map, int z, int x, int y) {
+	return pmtiles::get_tile(&decompress_fn, pmtiles_map, z, x, y);
 }
 
 std::string metadata_to_pmtiles_json(metadata m) {
