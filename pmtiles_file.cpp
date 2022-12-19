@@ -277,7 +277,7 @@ void mbtiles_map_image_to_pmtiles(char *fname, metadata m, bool tile_compression
 		header.internal_compression = 0x2;  // gzip
 
 		if (tile_compression) {
-			header.tile_compression = 0x1;	// gzip
+			header.tile_compression = 0x2;	// gzip
 		} else {
 			header.tile_compression = 0x0;	// none
 		}
