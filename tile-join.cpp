@@ -19,6 +19,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <set>
 #include <zlib.h>

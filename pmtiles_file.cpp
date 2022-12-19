@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string.h>
 #include <algorithm>
+#include <functional>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sqlite3.h>

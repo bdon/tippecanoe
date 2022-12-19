@@ -8,6 +8,8 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <algorithm>
+#include <functional>
 #include <zlib.h>
 #include <math.h>
 #include <fcntl.h>

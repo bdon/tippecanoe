@@ -28,6 +28,7 @@
 #include <sys/time.h>
 #include <zlib.h>
 #include <algorithm>
+#include <functional>
 #include <vector>
 #include <string>
 #include <set>
