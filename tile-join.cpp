@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <map>
 #include <set>
 #include <zlib.h>

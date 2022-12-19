@@ -73,7 +73,7 @@ std::vector<pmtiles::entry_zxy> pmtiles_entries_tms(const char *pmtiles_map, int
 	return filtered;
 }
 
-std::pair<uint64_t, uint32_t> pmtiles_get_tile(const char *pmtiles_map, int z, int x, int y) {
+std::tuple<uint64_t, uint32_t> pmtiles_get_tile(const char *pmtiles_map, int z, int x, int y) {
 	return pmtiles::get_tile(&decompress_fn, pmtiles_map, z, x, y);
 }
 
