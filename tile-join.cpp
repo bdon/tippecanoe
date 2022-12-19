@@ -377,7 +377,7 @@ struct reader {
 	struct reader *next = NULL;
 
 	char *pmtiles_map = NULL;
-	std::vector<pmtiles_zxy_entry> pmtiles_entries;
+	std::vector<pmtiles::entry_zxy> pmtiles_entries;
 
 	bool operator<(const struct reader &r) const {
 		if (zoom < r.zoom) {
@@ -446,15 +446,15 @@ struct reader *begin_reading(char *fname) {
 			exit(EXIT_CLOSE);
 		}
 
-		r->pmtiles_entries = pmtiles_entries_colmajor(r->pmtiles_map);
+		r->pmtiles_entries = pmtiles_entries_zxy(r->pmtiles_map);
 		std::reverse(r->pmtiles_entries.begin(), r->pmtiles_entries.end());
 
 		if (r->pmtiles_entries.size() == 0) {
 			r->zoom = 32;
 		} else {
-			r->zoom = r->pmtiles_entries[0].z;
-			r->x = r->pmtiles_entries[0].x;
-			r->y = r->pmtiles_entries[0].y;
+			r->zoom = r->pmtiles_entries.back().z;
+			r->x = r->pmtiles_entries.back().x;
+			r->y = r->pmtiles_entries.back().y;
 			r->sorty = (1LL << r->zoom) - 1 - r->y;
 		}
 		r->data = std::string(r->pmtiles_map + r->pmtiles_entries.back().offset, r->pmtiles_entries.back().length);
