@@ -34,12 +34,6 @@ void check_pmtiles(const char *filename, char **argv) {
 	}
 }
 
-static void out(json_writer &state, std::string k, std::string v) {
-	state.json_comma_newline();
-	state.json_write_string(k);
-	state.json_write_string(v);
-}
-
 std::string decompress_fn(const std::string &input, uint8_t compression) {
 	std::string output;
 	if (compression == pmtiles::COMPRESSION_NONE) {
@@ -75,6 +69,12 @@ std::vector<pmtiles::entry_zxy> pmtiles_entries_tms(const char *pmtiles_map, int
 
 std::pair<uint64_t, uint32_t> pmtiles_get_tile(const char *pmtiles_map, int z, int x, int y) {
 	return pmtiles::get_tile(&decompress_fn, pmtiles_map, z, x, y);
+}
+
+static void out(json_writer &state, std::string k, std::string v) {
+	state.json_comma_newline();
+	state.json_write_string(k);
+	state.json_write_string(v);
 }
 
 std::string metadata_to_pmtiles_json(metadata m) {
@@ -369,9 +369,9 @@ sqlite3 *pmtilesmeta2tmp(const char *fname, const char *pmtiles_map) {
 	std::string json_s{pmtiles_map + header.json_metadata_offset, header.json_metadata_bytes};
 	std::string decompressed_json;
 
-	if (header.internal_compression == 0x1) {
+	if (header.internal_compression == pmtiles::COMPRESSION_NONE) {
 		decompressed_json = json_s;
-	} else if (header.internal_compression == 0x2) {
+	} else if (header.internal_compression == pmtiles::COMPRESSION_GZIP) {
 		decompress(json_s, decompressed_json);
 	} else {
 		fprintf(stderr, "Unknown or unsupported pmtiles compression: %d\n", header.internal_compression);
