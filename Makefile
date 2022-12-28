@@ -175,6 +175,23 @@ pmtiles-test:
 	cmp tests/pmtiles/joined_reordered.json.check tests/pmtiles/joined_reordered.json
 	rm -r tests/pmtiles/joined_reordered.json.check tests/pmtiles/hackspots.mbtiles tests/pmtiles/joined.pmtiles
 
+	# From raw-tiles-test:
+	./tippecanoe -q -f -o tests/raw-tiles/raw-tiles.pmtiles -r1 -pC tests/raw-tiles/hackspots.geojson
+	./tippecanoe-decode -x generator tests/raw-tiles/raw-tiles.pmtiles | sed 's/\.pmtiles//g' | sed 's/ -o / -e /g' > tests/raw-tiles/raw-tiles.json.check
+	cmp tests/raw-tiles/raw-tiles.json.check tests/raw-tiles/raw-tiles.json
+	# Test that -z and -Z work in tippecanoe-decode
+	./tippecanoe-decode -x generator -Z6 -z7 tests/raw-tiles/raw-tiles.pmtiles | sed 's/\.pmtiles//g' | sed 's/ -o / -e /g' > tests/raw-tiles/raw-tiles-z67.json.check
+	cmp tests/raw-tiles/raw-tiles-z67.json.check tests/raw-tiles/raw-tiles-z67.json
+	# Test that -z and -Z work in tile-join
+	./tile-join -q -f -Z6 -z7 -o tests/raw-tiles/raw-tiles-z67.pmtiles tests/raw-tiles/raw-tiles.pmtiles
+	./tippecanoe-decode -x generator tests/raw-tiles/raw-tiles-z67.pmtiles | sed 's/\.pmtiles//g' | sed 's/ -o / -e /g' > tests/raw-tiles/raw-tiles-z67-join.json.check
+	cmp tests/raw-tiles/raw-tiles-z67-join.json.check tests/raw-tiles/raw-tiles-z67-join.json
+	rm -rf tests/raw-tiles/raw-tiles.pmtiles tests/raw-tiles/raw-tiles-z67.pmtiles tests/raw-tiles/raw-tiles.json.check raw-tiles-z67.json.check tests/raw-tiles/raw-tiles-z67-join.json.check
+	# Test that metadata.json is created even if all features are clipped away
+	./tippecanoe -q -f -o tests/raw-tiles/nothing.pmtiles tests/raw-tiles/nothing.geojson
+	./tippecanoe-decode -x generator tests/raw-tiles/nothing.pmtiles | sed 's/\.pmtiles//g' | sed 's/ -o / -e /g' > tests/raw-tiles/nothing.json.check
+	cmp tests/raw-tiles/nothing.json.check tests/raw-tiles/nothing.json
+	rm -r tests/raw-tiles/nothing.pmtiles tests/raw-tiles/nothing.json.check
 
 decode-test:
 	mkdir -p tests/muni/decode
@@ -196,12 +213,12 @@ decode-test:
 decode-pmtiles-test:
 	mkdir -p tests/muni/decode
 	./tippecanoe -q -z11 -Z11 -f -o tests/muni/decode/multi.pmtiles tests/muni/*.json
-	./tippecanoe-decode -x generator -l subway tests/muni/decode/multi.pmtiles > tests/muni/decode/multi.pmtiles.json.check
-	./tippecanoe-decode -x generator -l subway --integer tests/muni/decode/multi.pmtiles > tests/muni/decode/multi.pmtiles.integer.json.check
-	./tippecanoe-decode -x generator -l subway --fraction tests/muni/decode/multi.pmtiles > tests/muni/decode/multi.pmtiles.fraction.json.check
-	./tippecanoe-decode -x generator -c tests/muni/decode/multi.pmtiles > tests/muni/decode/multi.pmtiles.pipeline.json.check
-	./tippecanoe-decode -x generator tests/muni/decode/multi.pmtiles 11 327 791 > tests/muni/decode/multi.pmtiles.onetile.json.check
-	./tippecanoe-decode -x generator --stats tests/muni/decode/multi.pmtiles > tests/muni/decode/multi.pmtiles.stats.json.check
+	./tippecanoe-decode -x generator -l subway tests/muni/decode/multi.pmtiles | sed 's/pmtiles/mbtiles/g' > tests/muni/decode/multi.pmtiles.json.check
+	./tippecanoe-decode -x generator -l subway --integer tests/muni/decode/multi.pmtiles | sed 's/pmtiles/mbtiles/g' > tests/muni/decode/multi.pmtiles.integer.json.check
+	./tippecanoe-decode -x generator -l subway --fraction tests/muni/decode/multi.pmtiles | sed 's/pmtiles/mbtiles/g' > tests/muni/decode/multi.pmtiles.fraction.json.check
+	./tippecanoe-decode -x generator -c tests/muni/decode/multi.pmtiles | sed 's/pmtiles/mbtiles/g' > tests/muni/decode/multi.pmtiles.pipeline.json.check
+	./tippecanoe-decode -x generator tests/muni/decode/multi.pmtiles 11 327 791 | sed 's/pmtiles/mbtiles/g' > tests/muni/decode/multi.pmtiles.onetile.json.check
+	./tippecanoe-decode -x generator --stats tests/muni/decode/multi.pmtiles | sed 's/pmtiles/mbtiles/g' > tests/muni/decode/multi.pmtiles.stats.json.check
 	cmp tests/muni/decode/multi.pmtiles.json.check tests/muni/decode/multi.mbtiles.json
 	cmp tests/muni/decode/multi.pmtiles.integer.json.check tests/muni/decode/multi.mbtiles.integer.json
 	cmp tests/muni/decode/multi.pmtiles.fraction.json.check tests/muni/decode/multi.mbtiles.fraction.json
